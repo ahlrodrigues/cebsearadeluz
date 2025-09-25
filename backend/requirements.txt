@@ -1,7 +1,7 @@
 fastapi==0.110.1
 uvicorn[standard]==0.29.0
 SQLAlchemy==2.0.29
-passlib[bcrypt]==1.7.4
+bcrypt==4.1.2
 pydantic[email]==2.7.1
 python-multipart==0.0.9
 alembic==1.13.1

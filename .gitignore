@@ -5,3 +5,5 @@ app.db
 test.db
 .venv/
 .env
+frontend/node_modules/
+frontend/dist/

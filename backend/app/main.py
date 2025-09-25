@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from . import crud, models, schemas
@@ -8,22 +9,50 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="User Management API", version="0.1.0")
 
+ALLOWED_ORIGINS = [
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.post("/users", response_model=schemas.User, status_code=status.HTTP_201_CREATED)
 def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
-    existing_user = crud.get_user_by_email(db, user_in.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Já existe um usuário cadastrado com esse e-mail.",
-        )
+    if user_in.email:
+        existing_user = crud.get_user_by_email(db, user_in.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Já existe um usuário cadastrado com esse e-mail.",
+            )
     user = crud.create_user(db, user_in)
     return user
 
 
 @app.get("/users", response_model=list[schemas.User])
-def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    users = crud.get_users(db, skip=skip, limit=limit)
+def read_users(
+    skip: int = 0,
+    limit: int = 100,
+    search: str | None = None,
+    status: schemas.UserStatus | None = None,
+    role: schemas.UserRole | None = None,
+    db: Session = Depends(get_db),
+):
+    users = crud.get_users(
+        db,
+        skip=skip,
+        limit=limit,
+        search=search,
+        status=status.value if status else None,
+        role=role.value if role else None,
+    )
     return users
 
 

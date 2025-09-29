@@ -1,6 +1,16 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Integer, String
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import relationship
 
 from .database import Base
 
@@ -26,6 +36,7 @@ class User(Base):
     role = Column(String(20), nullable=False, default="user", index=True)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    assistance_day = Column(String(15), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -36,3 +47,71 @@ class User(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    pass_cycles = relationship(
+        "PassCycle",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class PassCycle(Base):
+    __tablename__ = "pass_cycles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    stage_number = Column(Integer, nullable=False, default=1)
+    pass_type = Column(String(50), nullable=False, default="Passe 1")
+    status = Column(String(20), nullable=False, default="Ativo")
+    sequence_length = Column(Integer, nullable=False, default=4)
+    started_at = Column(Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    completed_at = Column(Date, nullable=True)
+    interrupted_at = Column(Date, nullable=True)
+    requires_interview = Column(Boolean, nullable=False, default=False)
+    interview_scheduled_for = Column(Date, nullable=True)
+    interview_completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    user = relationship("User", back_populates="pass_cycles")
+    sessions = relationship(
+        "PassSession",
+        back_populates="cycle",
+        cascade="all, delete-orphan",
+        order_by="PassSession.sequence_index",
+    )
+
+
+class PassSession(Base):
+    __tablename__ = "pass_sessions"
+    __table_args__ = (
+        UniqueConstraint("cycle_id", "sequence_index", name="uq_pass_sessions_sequence"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    cycle_id = Column(Integer, ForeignKey("pass_cycles.id"), nullable=False, index=True)
+    sequence_index = Column(Integer, nullable=False)
+    scheduled_for = Column(Date, nullable=False)
+    status = Column(String(20), nullable=False, default="Agendado")
+    presence_recorded_at = Column(DateTime(timezone=True), nullable=True)
+    notes = Column(String(255), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    cycle = relationship("PassCycle", back_populates="sessions")

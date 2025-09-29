@@ -20,7 +20,7 @@ const AppLayout = () => {
               color="inherit"
               variant={isUsersList ? 'outlined' : 'text'}
             >
-              Usuários
+              Assistidos
             </Button>
             <Button
               component={RouterLink}
@@ -34,8 +34,18 @@ const AppLayout = () => {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="md" sx={{ py: 4 }}>
-        <Outlet />
+      <Container
+        component="main"
+        maxWidth="lg"
+        sx={{
+          py: 4,
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
+        <Box sx={{ width: '100%' }}>
+          <Outlet />
+        </Box>
       </Container>
     </Box>
   )

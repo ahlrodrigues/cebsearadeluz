@@ -1,5 +1,5 @@
 import type { ChangeEvent, FormEvent } from 'react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Box,
@@ -20,9 +20,9 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import type { AxiosError } from 'axios'
 
-import type { CreateUserPayload, UserRole, UserStatus } from '../../api/users'
+import type { CreateUserPayload, UpdateUserPayload, UserRole, UserStatus } from '../../api/users'
 import { lookupCep } from '../../api/cep'
-import { mapToPayload, normalizeInitialValues } from './utils'
+import { mapToCreatePayload, mapToUpdatePayload, normalizeInitialValues } from './utils'
 
 export type UserFormMode = 'create' | 'edit'
 
@@ -48,9 +48,19 @@ export interface UserFormValues {
 
 const statusOptions: Array<UserStatus> = ['Ativo', 'Desativado']
 const roleOptions: Array<UserRole> = ['user', 'admin']
+const assistanceDayOptions = [
+  '',
+  'Segunda-feira',
+  'Terça-feira',
+  'Quarta-feira',
+  'Quinta-feira',
+  'Sexta-feira',
+  'Sábado',
+  'Domingo',
+]
 
 export interface UserFormProps {
-  mode: UserFormMode
+  mode: 'create'
   initialValues?: Partial<UserFormValues>
   title?: string
   subtitle?: string
@@ -62,6 +72,21 @@ export interface UserFormProps {
   onReset?: () => void
 }
 
+export interface UserFormEditProps {
+  mode: 'edit'
+  initialValues?: Partial<UserFormValues>
+  title?: string
+  subtitle?: string
+  submitLabel?: string
+  successMessage?: string
+  isSubmitting?: boolean
+  error?: AxiosError | Error | null
+  onReset?: () => void
+  onSubmit: (values: UpdateUserPayload) => Promise<void> | void
+}
+
+type UserFormPropsUnion = UserFormProps | UserFormEditProps
+
 const UserForm = ({
   mode,
   initialValues,
@@ -71,9 +96,9 @@ const UserForm = ({
   successMessage,
   isSubmitting = false,
   error,
-  onSubmit,
   onReset,
-}: UserFormProps) => {
+  onSubmit,
+}: UserFormPropsUnion) => {
   const normalizedInitial = useMemo(() => normalizeInitialValues(initialValues), [initialValues])
 
   const [values, setValues] = useState<UserFormValues>(normalizedInitial)
@@ -84,6 +109,15 @@ const UserForm = ({
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const lastFetchedCep = useRef<string>('')
+
+  useEffect(() => {
+    setValues(normalizedInitial)
+    setFormErrors({})
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+    setCepError(null)
+    lastFetchedCep.current = ''
+  }, [normalizedInitial])
 
   const handleSnackbarClose = () => setSnackbarOpen(false)
 
@@ -165,7 +199,11 @@ const UserForm = ({
     }
 
     try {
-      await onSubmit(mapToPayload(values))
+      if (mode === 'create') {
+        await onSubmit(mapToCreatePayload(values))
+      } else {
+        await onSubmit(mapToUpdatePayload(values))
+      }
       setSnackbarOpen(true)
       if (mode === 'create') {
         internalReset()
@@ -188,13 +226,13 @@ const UserForm = ({
   const fullRow = { xs: 'span 1', md: 'span 2' } as const
 
   const resolvedTitle =
-    title ?? (mode === 'create' ? 'Cadastro de usuário' : 'Atualização de usuário')
+    title ?? (mode === 'create' ? 'Cadastro de assistido' : 'Atualização de assistido')
   const resolvedSubtitle =
     subtitle ??
     'Informe os dados obrigatórios e, se desejar, complete com as informações opcionais.'
-  const resolvedSubmitLabel = submitLabel ?? (mode === 'create' ? 'Salvar usuário' : 'Salvar alterações')
+  const resolvedSubmitLabel = submitLabel ?? (mode === 'create' ? 'Salvar assistido' : 'Salvar alterações')
   const resolvedSuccessMessage = successMessage ??
-    (mode === 'create' ? 'Usuário cadastrado com sucesso!' : 'Dados atualizados com sucesso!')
+    (mode === 'create' ? 'Assistido cadastrado com sucesso!' : 'Dados atualizados com sucesso!')
 
   return (
     <>
@@ -357,6 +395,21 @@ const UserForm = ({
             />
 
             <TextField
+              label="Dia de assistência"
+              select
+              value={values.assistance_day}
+              onChange={handleChange('assistance_day')}
+              fullWidth
+              helperText="Selecione o dia habitual em que o assistido recebe atendimento."
+            >
+              {assistanceDayOptions.map((option) => (
+                <MenuItem key={option || 'none'} value={option}>
+                  {option || 'Selecionar'}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
               label="Status"
               select
               value={values.status}
@@ -381,7 +434,7 @@ const UserForm = ({
             >
               {roleOptions.map((option) => (
                 <MenuItem key={option} value={option}>
-                  {option === 'user' ? 'Usuário comum' : 'Administrador'}
+                  {option === 'user' ? 'Assistido' : 'Administrador'}
                 </MenuItem>
               ))}
             </TextField>

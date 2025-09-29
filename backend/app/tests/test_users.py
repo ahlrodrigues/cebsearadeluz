@@ -1,58 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
 
-from ..database import Base, get_db
-from ..main import app
 from ..models import User
 from ..security import verify_password
-
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-
-test_engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+from .conftest import TestingSessionLocal
 
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_database():
-    Base.metadata.create_all(bind=test_engine)
-    yield
-    Base.metadata.drop_all(bind=test_engine)
-
-
-@pytest.fixture(autouse=True)
-def clean_tables():
-    with test_engine.begin() as connection:
-        for table in reversed(Base.metadata.sorted_tables):
-            connection.execute(table.delete())
-
-
-@pytest.fixture()
-def db_session():
-    session: Session = TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-
-
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-
-client = TestClient(app)
-
-
-def test_create_user():
+def test_create_user(client: TestClient):
     response = client.post(
         "/users",
         json={
@@ -72,6 +26,7 @@ def test_create_user():
             "social_network": "@maria",
             "status": "Ativo",
             "role": "user",
+            "assistance_day": "Segunda-feira",
         },
     )
     assert response.status_code == 201
@@ -92,9 +47,10 @@ def test_create_user():
     assert data["social_network"] == "@maria"
     assert data["status"] == "Ativo"
     assert data["role"] == "user"
+    assert data["assistance_day"] == "Segunda-feira"
 
 
-def test_prevent_duplicate_emails():
+def test_prevent_duplicate_emails(client: TestClient):
     client.post(
         "/users",
         json={
@@ -111,12 +67,13 @@ def test_prevent_duplicate_emails():
             "email": "maria@example.com",
             "password": "senhaSegura1",
             "status": "Ativo",
+            "assistance_day": "Terça-feira",
         },
     )
     assert response.status_code == 400
 
 
-def test_list_users():
+def test_list_users(client: TestClient):
     client.post(
         "/users",
         json={
@@ -136,7 +93,7 @@ def test_list_users():
     assert data[0]["role"] == "user"
 
 
-def test_filter_users_by_status():
+def test_filter_users_by_status(client: TestClient):
     client.post(
         "/users",
         json={
@@ -153,6 +110,7 @@ def test_filter_users_by_status():
             "email": "joao@example.com",
             "password": "senhaSegura1",
             "status": "Desativado",
+            "assistance_day": "Quinta-feira",
         },
     )
     user_inactive_id = response_inactive.json()["id"]
@@ -165,7 +123,7 @@ def test_filter_users_by_status():
     assert data[0]["status"] == "Desativado"
 
 
-def test_search_users_by_name():
+def test_search_users_by_name(client: TestClient):
     client.post(
         "/users",
         json={
@@ -173,6 +131,7 @@ def test_search_users_by_name():
             "email": "ana@example.com",
             "password": "senhaSegura1",
             "status": "Ativo",
+            "assistance_day": "Sexta-feira",
         },
     )
     client.post(
@@ -184,6 +143,16 @@ def test_search_users_by_name():
             "status": "Ativo",
         },
     )
+    client.post(
+        "/users",
+        json={
+            "full_name": "Carlos Ferreira",
+            "social_name": "Carlito",
+            "email": "carlos@example.com",
+            "password": "senhaSegura1",
+            "status": "Ativo",
+        },
+    )
 
     response = client.get("/users", params={"search": "bruno"})
     assert response.status_code == 200
@@ -191,8 +160,14 @@ def test_search_users_by_name():
     assert len(data) == 1
     assert data[0]["full_name"] == "Bruno Souza"
 
+    response_social = client.get("/users", params={"search": "carlito"})
+    assert response_social.status_code == 200
+    data_social = response_social.json()
+    assert len(data_social) == 1
+    assert data_social[0]["full_name"] == "Carlos Ferreira"
 
-def test_update_user():
+
+def test_update_user(client: TestClient):
     response = client.post(
         "/users",
         json={
@@ -211,6 +186,7 @@ def test_update_user():
             "status": "Desativado",
             "role": "admin",
             "phone": "(11)90000-1234",
+            "assistance_day": None,
         },
     )
     assert response.status_code == 200
@@ -219,6 +195,7 @@ def test_update_user():
     assert data["status"] == "Desativado"
     assert data["role"] == "admin"
     assert data["phone"] == "(11)90000-1234"
+    assert data["assistance_day"] is None
 
     with TestingSessionLocal() as db:
         user: User | None = db.get(User, user_id)
@@ -227,9 +204,40 @@ def test_update_user():
         assert user.status == "Desativado"
         assert user.role == "admin"
         assert user.is_active is False
+        assert user.assistance_day is None
 
 
-def test_delete_user():
+def test_user_qr_prefers_social_name(client: TestClient):
+    response = client.post(
+        "/users",
+        json={
+            "full_name": "Joana Fernandes",
+            "social_name": "Jo",
+            "email": "joana@example.com",
+            "password": "senhaSegura1",
+            "status": "Ativo",
+        },
+    )
+    user_id = response.json()["id"]
+
+    qr_response = client.get(f"/users/{user_id}/qr")
+    assert qr_response.status_code == 200
+    qr_data = qr_response.json()
+    assert qr_data == {"id": user_id, "name": "Jo"}
+
+    client.put(
+        f"/users/{user_id}",
+        json={"social_name": None},
+    )
+
+    qr_response_no_social = client.get(f"/users/{user_id}/qr")
+    assert qr_response_no_social.status_code == 200
+    qr_data_no_social = qr_response_no_social.json()
+    assert qr_data_no_social == {"id": user_id, "name": "Joana Fernandes"}
+
+
+
+def test_delete_user(client: TestClient):
     response = client.post(
         "/users",
         json={

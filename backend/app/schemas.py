@@ -1,6 +1,6 @@
-from datetime import date, datetime
+import datetime as dt
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -15,10 +15,20 @@ class UserRole(str, Enum):
     ADMIN = "admin"
 
 
+class AssistanceDay(str, Enum):
+    SEGUNDA = "Segunda-feira"
+    TERCA = "Terça-feira"
+    QUARTA = "Quarta-feira"
+    QUINTA = "Quinta-feira"
+    SEXTA = "Sexta-feira"
+    SABADO = "Sábado"
+    DOMINGO = "Domingo"
+
+
 class UserBase(BaseModel):
     full_name: str = Field(..., max_length=255)
     social_name: Optional[str] = Field(None, max_length=255)
-    birth_date: Optional[date] = None
+    birth_date: Optional[dt.date] = None
     cep: Optional[str] = Field(default=None, pattern=r"^\d{5}-?\d{3}$")
     street: Optional[str] = Field(None, max_length=255)
     number: Optional[str] = Field(None, max_length=20)
@@ -34,6 +44,7 @@ class UserBase(BaseModel):
     social_network: Optional[str] = Field(None, max_length=255)
     status: UserStatus = Field(default=UserStatus.ATIVO)
     role: UserRole = Field(default=UserRole.USER)
+    assistance_day: Optional[AssistanceDay] = Field(default=None)
 
 
 class UserCreate(UserBase):
@@ -43,7 +54,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
     social_name: Optional[str] = Field(None, max_length=255)
-    birth_date: Optional[date] = None
+    birth_date: Optional[dt.date] = None
     cep: Optional[str] = Field(default=None, pattern=r"^\d{5}-?\d{3}$")
     street: Optional[str] = Field(None, max_length=255)
     number: Optional[str] = Field(None, max_length=20)
@@ -60,15 +71,109 @@ class UserUpdate(BaseModel):
     status: Optional[UserStatus] = None
     role: Optional[UserRole] = None
     password: Optional[str] = Field(None, min_length=8, max_length=128)
+    assistance_day: Optional[AssistanceDay] = None
 
 
 class UserInDBBase(UserBase):
     id: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    created_at: dt.datetime
+    updated_at: Optional[dt.datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class User(UserInDBBase):
     pass
+
+
+class UserQRCode(BaseModel):
+    id: int
+    name: str
+
+class PassCycleStatus(str, Enum):
+    ATIVO = "Ativo"
+    CONCLUIDO = "Concluído"
+    INTERROMPIDO = "Interrompido"
+
+
+class PassSessionStatus(str, Enum):
+    AGENDADO = "Agendado"
+    PRESENTE = "Presente"
+    FALTA = "Falta"
+
+
+class PassSessionBase(BaseModel):
+    sequence_index: int = Field(ge=1)
+    scheduled_for: dt.date
+    status: PassSessionStatus = PassSessionStatus.AGENDADO
+    notes: Optional[str] = Field(default=None, max_length=255)
+
+
+class PassSessionCreate(PassSessionBase):
+    pass
+
+
+class PassSessionUpdate(BaseModel):
+    scheduled_for: Optional[dt.date] = None
+    status: Optional[PassSessionStatus] = None
+    notes: Optional[str] = Field(default=None, max_length=255)
+
+
+class PassSession(PassSessionBase):
+    id: int
+    cycle_id: int
+    presence_recorded_at: Optional[dt.datetime] = None
+    created_at: dt.datetime
+    updated_at: Optional[dt.datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PassPresenceRequest(BaseModel):
+    date: Optional[dt.date] = Field(default=None)
+    notes: Optional[str] = Field(default=None, max_length=255)
+
+
+class PassAbsenceRequest(BaseModel):
+    date: Optional[dt.date] = Field(default=None)
+    notes: Optional[str] = Field(default=None, max_length=255)
+
+
+class PassCycleBase(BaseModel):
+    stage_number: int = Field(default=1, ge=1)
+    pass_type: str = Field(default="Passe 1", max_length=50)
+    status: PassCycleStatus = PassCycleStatus.ATIVO
+    sequence_length: int = Field(default=4, ge=1, le=12)
+    started_at: dt.date
+    completed_at: Optional[dt.date] = None
+    interrupted_at: Optional[dt.date] = None
+    requires_interview: bool = False
+    interview_scheduled_for: Optional[dt.date] = None
+    interview_completed_at: Optional[dt.datetime] = None
+
+
+class PassCycleCreate(PassCycleBase):
+    user_id: int
+
+
+class PassCycleUpdate(BaseModel):
+    stage_number: Optional[int] = Field(default=None, ge=1)
+    pass_type: Optional[str] = Field(default=None, max_length=50)
+    status: Optional[PassCycleStatus] = None
+    sequence_length: Optional[int] = Field(default=None, ge=1, le=12)
+    started_at: Optional[dt.date] = None
+    completed_at: Optional[dt.date] = None
+    interrupted_at: Optional[dt.date] = None
+    requires_interview: Optional[bool] = None
+    interview_scheduled_for: Optional[dt.date] = None
+    interview_completed_at: Optional[dt.datetime] = None
+
+
+class PassCycle(PassCycleBase):
+    id: int
+    user_id: int
+    created_at: dt.datetime
+    updated_at: Optional[dt.datetime] = None
+    sessions: List[PassSession] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)

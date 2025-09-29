@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from . import models, schemas
@@ -28,7 +28,12 @@ def get_users(
 
     if search:
         normalized = f"%{search.lower()}%"
-        query = query.filter(func.lower(models.User.full_name).like(normalized))
+        query = query.filter(
+            or_(
+                func.lower(models.User.full_name).like(normalized),
+                func.lower(func.coalesce(models.User.social_name, "")).like(normalized),
+            )
+        )
     if status:
         query = query.filter(models.User.status == status)
     if role:
@@ -62,6 +67,7 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
         role=user_in.role.value,
         hashed_password=hashed_password,
         is_active=user_in.status == schemas.UserStatus.ATIVO,
+        assistance_day=user_in.assistance_day.value if user_in.assistance_day else None,
     )
     db.add(db_user)
     db.commit()
@@ -72,7 +78,7 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
 def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) -> models.User:
     if user_in.full_name is not None:
         db_user.full_name = user_in.full_name
-    if user_in.social_name is not None:
+    if "social_name" in user_in.model_fields_set:
         db_user.social_name = user_in.social_name
     if user_in.birth_date is not None:
         db_user.birth_date = user_in.birth_date
@@ -101,6 +107,10 @@ def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) 
         db_user.is_active = user_in.status == schemas.UserStatus.ATIVO
     if user_in.role is not None:
         db_user.role = user_in.role.value
+    if 'assistance_day' in user_in.model_fields_set:
+        db_user.assistance_day = (
+            user_in.assistance_day.value if user_in.assistance_day else None
+        )
     if user_in.password is not None:
         db_user.hashed_password = get_password_hash(user_in.password)
     db.commit()

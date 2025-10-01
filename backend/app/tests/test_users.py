@@ -1,5 +1,9 @@
 import pytest
+from datetime import date
+
 from fastapi.testclient import TestClient
+
+from .test_passes import create_assistido
 
 from ..models import User
 from ..security import verify_password
@@ -165,6 +169,49 @@ def test_search_users_by_name(client: TestClient):
     data_social = response_social.json()
     assert len(data_social) == 1
     assert data_social[0]["full_name"] == "Carlos Ferreira"
+
+
+def test_user_response_contains_active_cycle_summary(client: TestClient):
+    inactive_user_response = client.post(
+        "/users",
+        json={
+            "full_name": "Sem Ciclo",
+            "email": "semciclo@example.com",
+            "password": "senhaSegura1",
+            "status": "Ativo",
+        },
+    )
+    assert inactive_user_response.status_code == 201
+    inactive_user_id = inactive_user_response.json()["id"]
+
+    user_with_cycle_id = create_assistido(client)
+    presence_response = client.post(
+        f"/users/{user_with_cycle_id}/passes/presence",
+        json={"date": date(2025, 1, 1).isoformat()},
+    )
+    assert presence_response.status_code == 201
+
+    list_response = client.get("/users")
+    assert list_response.status_code == 200
+    users = list_response.json()
+
+    target = next(user for user in users if user["id"] == user_with_cycle_id)
+    assert target["has_active_cycle"] is True
+    assert target["active_cycle_stage_number"] == 1
+    assert target["active_cycle_presence_count"] == 1
+    assert target["active_cycle_absence_count"] == 0
+    assert target["active_cycle_pass_type"]
+
+    other = next(user for user in users if user["id"] == inactive_user_id)
+    assert other["has_active_cycle"] is False
+    assert other["active_cycle_pass_type"] is None
+
+    detail_response = client.get(f"/users/{user_with_cycle_id}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["has_active_cycle"] is True
+    assert detail["active_cycle_stage_number"] == 1
+    assert detail["active_cycle_presence_count"] == 1
 
 
 def test_update_user(client: TestClient):

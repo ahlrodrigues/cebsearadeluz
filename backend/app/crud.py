@@ -1,14 +1,100 @@
+from collections.abc import Iterable
+from datetime import date
 from typing import Optional
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from . import models, schemas
+from . import models, passes, schemas
 from .security import get_password_hash
 
 
+def _annotate_active_cycle_summary(user: models.User) -> models.User:
+    active_cycles: Iterable[models.PassCycle] = (
+        cycle for cycle in getattr(user, "pass_cycles", []) if cycle.status == "Ativo"
+    )
+    active_cycle = None
+    latest_started_at = None
+    for cycle in active_cycles:
+        if latest_started_at is None or (
+            cycle.started_at and cycle.started_at >= latest_started_at
+        ):
+            latest_started_at = cycle.started_at
+            active_cycle = cycle
+
+    if not active_cycle:
+        user.has_active_cycle = False
+        user.active_cycle_pass_type = None
+        user.active_cycle_stage_number = None
+        user.active_cycle_sequence_length = None
+        user.active_cycle_presence_count = None
+        user.active_cycle_absence_count = None
+        user.active_cycle_next_session = None
+        user.active_cycle_requires_interview = None
+        user.active_cycle_interview_scheduled_for = None
+        user.active_cycle_last_presence_recorded_at = None
+        return user
+
+    sessions = list(getattr(active_cycle, "sessions", []))
+    presence_count = sum(
+        1
+        for session in sessions
+        if session.status == schemas.PassSessionStatus.PRESENTE.value
+    )
+    absence_count = sum(
+        1
+        for session in sessions
+        if session.status == schemas.PassSessionStatus.AUSENTE.value
+    )
+    last_presence = None
+    last_session_date = None
+    for session in sessions:
+        if session.presence_recorded_at and (
+            last_presence is None or session.presence_recorded_at > last_presence
+        ):
+            last_presence = session.presence_recorded_at
+        if last_session_date is None or session.scheduled_for > last_session_date:
+            last_session_date = session.scheduled_for
+
+    assistance_day = getattr(user, "assistance_day", None)
+    if last_session_date is not None:
+        next_session_date = passes.compute_next_assistance_date(
+            assistance_day, last_session_date
+        )
+    else:
+        if assistance_day:
+            if active_cycle.started_at >= date.today():
+                next_session_date = active_cycle.started_at
+            else:
+                next_session_date = passes.compute_next_assistance_date(
+                    assistance_day, active_cycle.started_at
+                )
+        else:
+            next_session_date = None
+
+    user.has_active_cycle = True
+    user.active_cycle_pass_type = active_cycle.pass_type
+    user.active_cycle_stage_number = active_cycle.stage_number
+    user.active_cycle_sequence_length = active_cycle.sequence_length
+    user.active_cycle_presence_count = presence_count
+    user.active_cycle_absence_count = absence_count
+    user.active_cycle_next_session = next_session_date
+    user.active_cycle_requires_interview = active_cycle.requires_interview
+    user.active_cycle_interview_scheduled_for = active_cycle.interview_scheduled_for
+    user.active_cycle_last_presence_recorded_at = last_presence
+    return user
+
+
 def get_user(db: Session, user_id: int) -> Optional[models.User]:
-    return db.query(models.User).filter(models.User.id == user_id).first()
+    user = (
+        db.query(models.User)
+        .options(selectinload(models.User.pass_cycles).selectinload(models.PassCycle.sessions))
+        .filter(models.User.id == user_id)
+        .first()
+    )
+    if user:
+        _annotate_active_cycle_summary(user)
+    return user
 
 
 def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
@@ -24,7 +110,9 @@ def get_users(
     status: Optional[str] = None,
     role: Optional[str] = None,
 ):
-    query = db.query(models.User)
+    query = db.query(models.User).options(
+        selectinload(models.User.pass_cycles).selectinload(models.PassCycle.sessions)
+    )
 
     if search:
         normalized = f"%{search.lower()}%"
@@ -39,12 +127,15 @@ def get_users(
     if role:
         query = query.filter(models.User.role == role)
 
-    return (
+    users = (
         query.order_by(models.User.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
     )
+    for user in users:
+        _annotate_active_cycle_summary(user)
+    return users
 
 
 def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
@@ -72,6 +163,7 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    _annotate_active_cycle_summary(db_user)
     return db_user
 
 
@@ -115,9 +207,52 @@ def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) 
         db_user.hashed_password = get_password_hash(user_in.password)
     db.commit()
     db.refresh(db_user)
+    _annotate_active_cycle_summary(db_user)
     return db_user
 
 
 def delete_user(db: Session, db_user: models.User) -> None:
     db.delete(db_user)
     db.commit()
+
+
+def get_exam_record(db: Session, user_id: int) -> Optional[models.ExamRecord]:
+    return (
+        db.query(models.ExamRecord)
+        .filter(models.ExamRecord.user_id == user_id)
+        .first()
+    )
+
+
+def create_exam_record(
+    db: Session, user_id: int, exam_in: schemas.ExamRecordCreate
+) -> models.ExamRecord:
+    exam = models.ExamRecord(
+        user_id=user_id,
+        answers=exam_in.answers,
+        observations=exam_in.observations,
+        recommendations=list(exam_in.recommendations),
+        next_pass_type=exam_in.next_pass_type.value if exam_in.next_pass_type else None,
+    )
+    db.add(exam)
+    db.commit()
+    db.refresh(exam)
+    return exam
+
+
+def update_exam_record(
+    db: Session,
+    exam_record: models.ExamRecord,
+    exam_in: schemas.ExamRecordUpdate,
+) -> models.ExamRecord:
+    if exam_in.answers is not None:
+        exam_record.answers = exam_in.answers
+    if exam_in.observations is not None:
+        exam_record.observations = exam_in.observations
+    if exam_in.recommendations is not None:
+        exam_record.recommendations = list(exam_in.recommendations)
+    if exam_in.next_pass_type is not None:
+        exam_record.next_pass_type = exam_in.next_pass_type.value if exam_in.next_pass_type else None
+    db.commit()
+    db.refresh(exam_record)
+    return exam_record

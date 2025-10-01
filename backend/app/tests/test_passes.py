@@ -2,6 +2,9 @@ from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 
+from backend.app import passes, schemas
+from .conftest import TestingSessionLocal
+
 
 def create_assistido(client: TestClient) -> int:
     response = client.post(
@@ -120,3 +123,53 @@ def test_get_active_cycle_endpoint(client: TestClient):
     assert cycle["status"] == "Ativo"
     assert cycle["stage_number"] == 1
     assert len(cycle["sessions"]) == 1
+
+
+def test_automatic_absence_registered_next_day(client: TestClient):
+    response = client.post(
+        "/users",
+        json={
+            "full_name": "Ana Automática",
+            "email": "auto@example.com",
+            "password": "senhaSegura1",
+            "status": "Ativo",
+            "assistance_day": "Segunda-feira",
+        },
+    )
+    assert response.status_code == 201
+    user_id = response.json()["id"]
+
+    with TestingSessionLocal() as session:
+        passes.register_presence(
+            session,
+            user_id=user_id,
+            presence_date=date(2025, 1, 6),
+        )
+
+        passes.ensure_pending_absences(
+            session,
+            user_id=user_id,
+            reference_date=date(2025, 1, 14),
+        )
+
+        cycle = passes.get_active_cycle(session, user_id)
+        assert cycle is not None
+        absence = next(
+            (s for s in cycle.sessions if s.scheduled_for == date(2025, 1, 13)),
+            None,
+        )
+        assert absence is not None
+        assert absence.status == schemas.PassSessionStatus.AUSENTE.value
+        assert absence.notes == "Ausência registrada automaticamente."
+
+        passes.ensure_pending_absences(
+            session,
+            user_id=user_id,
+            reference_date=date(2025, 1, 14),
+        )
+        cycle = passes.get_active_cycle(session, user_id)
+        assert cycle is not None
+        occurrences = [
+            s for s in cycle.sessions if s.scheduled_for == date(2025, 1, 13)
+        ]
+        assert len(occurrences) == 1

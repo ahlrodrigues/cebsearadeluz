@@ -78,6 +78,16 @@ class UserInDBBase(UserBase):
     id: int
     created_at: dt.datetime
     updated_at: Optional[dt.datetime] = None
+    has_active_cycle: bool = False
+    active_cycle_pass_type: Optional[str] = None
+    active_cycle_stage_number: Optional[int] = None
+    active_cycle_sequence_length: Optional[int] = None
+    active_cycle_presence_count: Optional[int] = None
+    active_cycle_absence_count: Optional[int] = None
+    active_cycle_next_session: Optional[dt.date] = None
+    active_cycle_requires_interview: Optional[bool] = None
+    active_cycle_interview_scheduled_for: Optional[dt.date] = None
+    active_cycle_last_presence_recorded_at: Optional[dt.datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -96,16 +106,25 @@ class PassCycleStatus(str, Enum):
     INTERROMPIDO = "Interrompido"
 
 
+class PassType(str, Enum):
+    P1 = "P1"
+    P2 = "P2"
+    P3A = "P3A"
+    P3B = "P3B"
+    CH = "CH"
+    P4A = "P4A"
+    P4B = "P4B"
+
+
 class PassSessionStatus(str, Enum):
-    AGENDADO = "Agendado"
     PRESENTE = "Presente"
-    FALTA = "Falta"
+    AUSENTE = "Ausente"
 
 
 class PassSessionBase(BaseModel):
     sequence_index: int = Field(ge=1)
     scheduled_for: dt.date
-    status: PassSessionStatus = PassSessionStatus.AGENDADO
+    status: PassSessionStatus = PassSessionStatus.PRESENTE
     notes: Optional[str] = Field(default=None, max_length=255)
 
 
@@ -141,7 +160,7 @@ class PassAbsenceRequest(BaseModel):
 
 class PassCycleBase(BaseModel):
     stage_number: int = Field(default=1, ge=1)
-    pass_type: str = Field(default="Passe 1", max_length=50)
+    pass_type: PassType = Field(default=PassType.P1)
     status: PassCycleStatus = PassCycleStatus.ATIVO
     sequence_length: int = Field(default=4, ge=1, le=12)
     started_at: dt.date
@@ -175,5 +194,43 @@ class PassCycle(PassCycleBase):
     created_at: dt.datetime
     updated_at: Optional[dt.datetime] = None
     sessions: List[PassSession] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExamRecommendation(str, Enum):
+    EVANGELHO_NO_LAR = "evangelho_no_lar"
+    PRECES = "preces"
+    LEITURAS = "leituras"
+    VIGILANCIA = "vigilancia"
+    EAE = "eae"
+    TRABALHO = "trabalho"
+    OTIMISMO = "otimismo"
+    CONFIAR_EM_JESUS = "confiar_em_jesus"
+
+
+class ExamRecordBase(BaseModel):
+    answers: Optional[str] = None
+    observations: Optional[str] = None
+    recommendations: list[ExamRecommendation] = Field(default_factory=list)
+    next_pass_type: Optional[PassType] = None
+
+
+class ExamRecordCreate(ExamRecordBase):
+    pass
+
+
+class ExamRecordUpdate(BaseModel):
+    answers: Optional[str] = None
+    observations: Optional[str] = None
+    recommendations: Optional[list[ExamRecommendation]] = None
+    next_pass_type: Optional[PassType] = None
+
+
+class ExamRecord(ExamRecordBase):
+    id: int
+    user_id: int
+    created_at: dt.datetime
+    updated_at: Optional[dt.datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

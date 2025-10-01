@@ -7,7 +7,9 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    JSON,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -53,6 +55,12 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    exam_record = relationship(
+        "ExamRecord",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
 
 class PassCycle(Base):
@@ -61,7 +69,7 @@ class PassCycle(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     stage_number = Column(Integer, nullable=False, default=1)
-    pass_type = Column(String(50), nullable=False, default="Passe 1")
+    pass_type = Column(String(5), nullable=False, default="P1")
     status = Column(String(20), nullable=False, default="Ativo")
     sequence_length = Column(Integer, nullable=False, default=4)
     started_at = Column(Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
@@ -100,7 +108,7 @@ class PassSession(Base):
     cycle_id = Column(Integer, ForeignKey("pass_cycles.id"), nullable=False, index=True)
     sequence_index = Column(Integer, nullable=False)
     scheduled_for = Column(Date, nullable=False)
-    status = Column(String(20), nullable=False, default="Agendado")
+    status = Column(String(20), nullable=False, default="Presente")
     presence_recorded_at = Column(DateTime(timezone=True), nullable=True)
     notes = Column(String(255), nullable=True)
     created_at = Column(
@@ -115,3 +123,26 @@ class PassSession(Base):
     )
 
     cycle = relationship("PassCycle", back_populates="sessions")
+
+
+class ExamRecord(Base):
+    __tablename__ = "exam_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    answers = Column(Text, nullable=True)
+    observations = Column(Text, nullable=True)
+    recommendations = Column(JSON, nullable=False, default=list)
+    next_pass_type = Column(String(5), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    user = relationship("User", back_populates="exam_record")

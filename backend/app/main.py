@@ -93,6 +93,68 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     return None
 
 
+@app.get("/users/{user_id}/exam", response_model=schemas.ExamRecord)
+def get_exam_record(user_id: int, db: Session = Depends(get_db)):
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
+    exam = crud.get_exam_record(db, user_id)
+    if not exam:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ficha de exame não encontrada.",
+        )
+    return exam
+
+
+@app.post(
+    "/users/{user_id}/exam",
+    response_model=schemas.ExamRecord,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_exam_record(
+    user_id: int,
+    exam_in: schemas.ExamRecordCreate,
+    db: Session = Depends(get_db),
+):
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
+    existing = crud.get_exam_record(db, user_id)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Já existe uma ficha de exame cadastrada para este assistido.",
+        )
+    exam = crud.create_exam_record(db, user_id, exam_in)
+    return exam
+
+
+@app.put("/users/{user_id}/exam", response_model=schemas.ExamRecord)
+def upsert_exam_record(
+    user_id: int,
+    exam_in: schemas.ExamRecordUpdate,
+    db: Session = Depends(get_db),
+):
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
+    exam = crud.get_exam_record(db, user_id)
+    if exam is None:
+        create_payload = schemas.ExamRecordCreate(**exam_in.model_dump(exclude_unset=True))
+        return crud.create_exam_record(db, user_id, create_payload)
+    return crud.update_exam_record(db, exam, exam_in)
+
+
 @app.get("/users/{user_id}/qr", response_model=schemas.UserQRCode)
 def get_user_qr(user_id: int, db: Session = Depends(get_db)):
     user = crud.get_user(db, user_id)

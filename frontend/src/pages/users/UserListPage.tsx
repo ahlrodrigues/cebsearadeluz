@@ -30,6 +30,7 @@ import {
 } from "@mui/material";
 import { AxiosError } from "axios";
 import DeleteIcon from "@mui/icons-material/Delete";
+import DescriptionIcon from "@mui/icons-material/Description";
 import EditIcon from "@mui/icons-material/Edit";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import Snackbar from "@mui/material/Snackbar";
@@ -91,6 +92,13 @@ const mapToApiFilters = (filters: FilterState): UserFilters => ({
   assistance_day:
     filters.assistance_day === "all" ? undefined : filters.assistance_day,
 });
+
+const formatDate = (isoDate?: string | null) => {
+  if (!isoDate) return "—";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(
+    new Date(isoDate),
+  );
+};
 
 const formatDateTime = (isoDate: string) =>
   new Intl.DateTimeFormat("pt-BR", {
@@ -420,6 +428,23 @@ const UserListPage = () => {
                   const secondaryName = user.social_name
                     ? user.full_name
                     : null;
+                  const activeCycleLabel = user.has_active_cycle
+                    ? `${user.active_cycle_pass_type ?? "Ciclo ativo"} • ${
+                        user.active_cycle_stage_number ?? "-"
+                      }/${user.active_cycle_sequence_length ?? "-"}`
+                    : null;
+                  const nextSessionLabel = user.active_cycle_next_session
+                    ? `Próx. atendimento: ${formatDate(
+                        user.active_cycle_next_session,
+                      )}`
+                    : null;
+                  const interviewLabel = user.active_cycle_requires_interview
+                    ? user.active_cycle_interview_scheduled_for
+                      ? `Entrevista: ${formatDate(
+                          user.active_cycle_interview_scheduled_for,
+                        )}`
+                      : "Entrevista pendente"
+                    : null;
 
                   return (
                     <TableRow key={user.id} hover>
@@ -444,6 +469,44 @@ const UserListPage = () => {
                             >
                               Nome civil: {secondaryName}
                             </Typography>
+                          )}
+                          {(activeCycleLabel ||
+                            nextSessionLabel ||
+                            interviewLabel) && (
+                            <Stack
+                              direction="row"
+                              spacing={0.5}
+                              flexWrap="wrap"
+                            >
+                              {activeCycleLabel && (
+                                <Chip
+                                  size="small"
+                                  color="primary"
+                                  label={activeCycleLabel}
+                                  sx={{ mt: 0.25 }}
+                                />
+                              )}
+                              {nextSessionLabel && (
+                                <Chip
+                                  size="small"
+                                  color="info"
+                                  label={nextSessionLabel}
+                                  sx={{ mt: 0.25 }}
+                                />
+                              )}
+                              {interviewLabel && (
+                                <Chip
+                                  size="small"
+                                  color={
+                                    user.active_cycle_interview_scheduled_for
+                                      ? "warning"
+                                      : "default"
+                                  }
+                                  label={interviewLabel}
+                                  sx={{ mt: 0.25 }}
+                                />
+                              )}
+                            </Stack>
                           )}
                         </Stack>
                       </TableCell>
@@ -516,6 +579,19 @@ const UserListPage = () => {
                           spacing={1}
                           justifyContent="flex-end"
                         >
+                          <Tooltip title="Ficha de exame">
+                            <span>
+                              <IconButton
+                                size="small"
+                                color="default"
+                                onClick={() =>
+                                  navigate(`/users/${user.id}/exam`)
+                                }
+                              >
+                                <DescriptionIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                           <Tooltip title="Controle de passes">
                             <span>
                               <IconButton

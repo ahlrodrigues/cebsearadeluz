@@ -100,6 +100,47 @@ class UserQRCode(BaseModel):
     id: int
     name: str
 
+
+class QRScanRequest(BaseModel):
+    token: Optional[str] = None
+    user_id: Optional[int] = None
+    date: Optional[dt.date] = None
+    notes: Optional[str] = Field(default=None, max_length=255)
+
+    def resolve_user_id(self) -> Optional[int]:
+        return self.user_id
+
+
+class ScanLog(BaseModel):
+    id: int
+    created_at: dt.datetime
+    raw: Optional[str] = None
+    token_type: Optional[str] = None
+    scanned_for: Optional[dt.date] = None
+    ticket_number: Optional[int] = None
+    ok: bool
+    error: Optional[str] = None
+    user_id: Optional[int] = None
+    session_id: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ScanKioskResponse(BaseModel):
+    ticket_number: int
+    user_id: int
+    user_name: str
+    session: 'PassSession'
+
+class ScanLogView(ScanLog):
+    user_name: Optional[str] = None
+
+class ScanLogsSummary(BaseModel):
+    date_ref: dt.date
+    total: int
+    success: int
+    failure: int
+
 class PassCycleStatus(str, Enum):
     ATIVO = "Ativo"
     CONCLUIDO = "Concluído"
@@ -146,6 +187,9 @@ class PassSession(PassSessionBase):
     updated_at: Optional[dt.datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+# Resolve forward refs
+ScanKioskResponse.model_rebuild()
 
 
 class PassPresenceRequest(BaseModel):

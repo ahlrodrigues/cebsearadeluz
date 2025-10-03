@@ -275,7 +275,6 @@ const UserExamPage = () => {
         <Paper sx={{ p: { xs: 2, md: 4 } }}>
           <Stack spacing={3}>
             <Box>
-              <Typography variant="subtitle1">Dados do assistido</Typography>
               <Typography>ID: {user.id}</Typography>
               <Typography>Nome: {user.social_name || user.full_name}</Typography>
               <Typography>Idade: {formatAge(user.birth_date)}</Typography>
@@ -283,21 +282,21 @@ const UserExamPage = () => {
             </Box>
 
             <TextField
-              label="Respostas do exame"
+              label="Descreva aqui as orientações coletadas no exame espiritual."
               value={formState.answers}
               onChange={handleChange("answers")}
               multiline
               minRows={6}
-              placeholder="Descreva aqui as respostas coletadas no exame espiritual."
+              placeholder="Descreva aqui as orientações coletadas no exame espiritual."
             />
 
             <TextField
-              label="Observações"
+              label="Observações dos entrevistadores"
               value={formState.observations}
               onChange={handleChange("observations")}
               multiline
               minRows={4}
-              placeholder="Anote observações relevantes para a equipe e entrevistadores."
+              placeholder="Observações dos entrevistadores."
             />
 
             <Box>
@@ -339,7 +338,7 @@ const UserExamPage = () => {
         onClose={() => setSnackbar(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        {snackbar && (
+        {snackbar ? (
           <Alert
             onClose={() => setSnackbar(null)}
             severity={snackbar.severity}
@@ -347,7 +346,7 @@ const UserExamPage = () => {
           >
             {snackbar.message}
           </Alert>
-        )}
+        ) : undefined}
       </Snackbar>
     </Box>
   );

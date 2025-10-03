@@ -1,3 +1,4 @@
+import os
 from datetime import date
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -6,23 +7,23 @@ from sqlalchemy.orm import Session
 
 from . import crud, models, passes, schemas
 from .database import Base, engine, get_db
-
-Base.metadata.create_all(bind=engine)
+from .policies import enforce_auto_deactivation
 
 app = FastAPI(title="User Management API", version="0.1.0")
 
-ALLOWED_ORIGINS = [
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-]
+ALLOWED_ORIGINS = ["*"]  # Dev: liberar todas as origens
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=False,  # necessário para usar '*'
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Only JWT QR tokens are accepted by default. Set ALLOW_LEGACY_QR=1 to
+# temporarily accept numeric/JSON QR payloads during migration.
+ALLOW_LEGACY_QR = os.getenv("ALLOW_LEGACY_QR", "0") == "1"
 
 
 @app.post("/users", response_model=schemas.User, status_code=status.HTTP_201_CREATED)
@@ -164,6 +165,17 @@ def get_user_qr(user_id: int, db: Session = Depends(get_db)):
     return schemas.UserQRCode(id=user.id, name=display_name)
 
 
+@app.get("/users/{user_id}/qr-token")
+def get_user_qr_token(user_id: int, db: Session = Depends(get_db)):
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
+    # Use role from user to embed in token; default to "user"
+    from .auth_tokens import create_qr_token
+    token = create_qr_token(str(user.id), user.role or "user")
+    return {"token": token}
+
+
 @app.get("/users/{user_id}/pass-cycles", response_model=list[schemas.PassCycle])
 def list_pass_cycles(user_id: int, db: Session = Depends(get_db)):
     user = crud.get_user(db, user_id)
@@ -201,13 +213,260 @@ def register_pass_presence(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
     presence_date = payload.date or date.today()
+    notes = payload.notes or "Presença registrada manualmente"
     session = passes.register_presence(
         db,
         user_id=user_id,
         presence_date=presence_date,
-        notes=payload.notes,
+        notes=notes,
     )
     return session
+
+
+@app.post("/passes/scan", response_model=schemas.PassSession, status_code=status.HTTP_201_CREATED)
+def scan_qr_and_register_presence(payload: schemas.QRScanRequest, db: Session = Depends(get_db)):
+    if not payload.token and not payload.user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Forneça 'token' ou 'user_id'.")
+
+    resolved_user_id: int | None = None
+    # Dev convenience: accept explicit user_id on this dev endpoint
+    if payload.user_id:
+        resolved_user_id = payload.user_id
+    elif payload.token:
+        token_str = payload.token.strip()
+        from .auth_tokens import decode_token
+        decoded = decode_token(token_str)
+        if decoded and decoded.type in {"qr", "access"}:
+            try:
+                resolved_user_id = int(decoded.sub)
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token não contém usuário válido.")
+        elif ALLOW_LEGACY_QR:
+            # Legacy fallback (numeric / JSON)
+            if token_str.isdigit():
+                resolved_user_id = int(token_str)
+            else:
+                import json
+                try:
+                    parsed = json.loads(token_str)
+                    candidate = parsed.get("user_id") or parsed.get("id")
+                    if isinstance(candidate, int):
+                        resolved_user_id = candidate
+                    elif isinstance(candidate, str) and candidate.isdigit():
+                        resolved_user_id = int(candidate)
+                except Exception:
+                    pass
+        else:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de QR inválido.")
+
+    if not resolved_user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Não foi possível determinar o usuário.")
+
+    user = crud.get_user(db, resolved_user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
+    if getattr(user, "status", None) != "Ativo" or getattr(user, "is_active", False) is False:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuário desativado.")
+
+    presence_date = payload.date or date.today()
+    notes = payload.notes or "Presença via QR"
+    session = passes.register_presence(db, user_id=resolved_user_id, presence_date=presence_date, notes=notes)
+    return session
+
+
+def _ensure_scanlog_table():
+    try:
+        models.Base.metadata.create_all(bind=engine, tables=[models.ScanLog.__table__])
+    except Exception:
+        pass
+
+
+def _next_ticket_number(db: Session, for_date: date) -> int:
+    _ensure_scanlog_table()
+    from sqlalchemy import func
+    last = (
+        db.query(func.max(models.ScanLog.ticket_number))
+        .filter(models.ScanLog.scanned_for == for_date, models.ScanLog.ok == True)
+        .scalar()
+    )
+    return (last or 0) + 1
+
+
+def _log_scan(
+    db: Session,
+    *,
+    raw: str | None,
+    token_type: str | None,
+    scanned_for: date | None,
+    ok: bool,
+    error: str | None,
+    user_id: int | None,
+    session_id: int | None,
+    ticket_number: int | None,
+):
+    _ensure_scanlog_table()
+    log = models.ScanLog(
+        raw=raw,
+        token_type=token_type,
+        scanned_for=scanned_for,
+        ok=ok,
+        error=error,
+        user_id=user_id,
+        session_id=session_id,
+        ticket_number=ticket_number,
+    )
+    db.add(log)
+    db.commit()
+    return log
+
+
+@app.post(
+    "/passes/scan-kiosk",
+    response_model=schemas.ScanKioskResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def scan_kiosk(payload: schemas.QRScanRequest, db: Session = Depends(get_db)):
+    raw = payload.token
+    token_type: str | None = None
+    resolved_user_id: int | None = None
+    try:
+        if not payload.token:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Forneça 'token'.")
+
+        if payload.token:
+            token_str = payload.token.strip()
+            # Try JWT first
+            try:
+                from .auth_tokens import decode_token
+                dec = decode_token(token_str)
+            except Exception:
+                dec = None
+            if dec and getattr(dec, "type", None) in {"qr", "access"}:
+                resolved_user_id = int(dec.sub)
+                token_type = "jwt"
+            elif ALLOW_LEGACY_QR:
+                if token_str.isdigit():
+                    resolved_user_id = int(token_str)
+                    token_type = "numeric"
+                else:
+                    import json
+                    try:
+                        parsed = json.loads(token_str)
+                        candidate = parsed.get("user_id") or parsed.get("id")
+                        if isinstance(candidate, int):
+                            resolved_user_id = candidate
+                        elif isinstance(candidate, str) and candidate.isdigit():
+                            resolved_user_id = int(candidate)
+                        token_type = "json"
+                    except Exception:
+                        token_type = "unknown"
+            else:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token de QR inválido.")
+
+        if not resolved_user_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Não foi possível determinar o usuário.")
+
+        user = crud.get_user(db, resolved_user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
+        if getattr(user, "status", None) != "Ativo" or getattr(user, "is_active", False) is False:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuário desativado.")
+
+        presence_date = payload.date or date.today()
+        session = passes.register_presence(
+            db,
+            user_id=resolved_user_id,
+            presence_date=presence_date,
+            notes=payload.notes or "Presença via QR (kiosk)",
+        )
+
+        ticket = _next_ticket_number(db, presence_date)
+        _log_scan(
+            db,
+            raw=raw,
+            token_type=token_type,
+            scanned_for=presence_date,
+            ok=True,
+            error=None,
+            user_id=resolved_user_id,
+            session_id=session.id,
+            ticket_number=ticket,
+        )
+
+        return schemas.ScanKioskResponse(
+            ticket_number=ticket,
+            user_id=user.id,
+            user_name=(user.social_name or user.full_name),
+            session=session,
+        )
+    except HTTPException as exc:
+        presence_date = payload.date or date.today()
+        _log_scan(
+            db,
+            raw=raw,
+            token_type=token_type,
+            scanned_for=presence_date,
+            ok=False,
+            error=exc.detail if isinstance(exc.detail, str) else str(exc.detail),
+            user_id=resolved_user_id,
+            session_id=None,
+            ticket_number=None,
+        )
+        raise
+
+
+@app.get("/reports/scan-logs", response_model=list[schemas.ScanLogView])
+def list_scan_logs(date_ref: date | None = None, db: Session = Depends(get_db)):
+    _ensure_scanlog_table()
+    q = db.query(models.ScanLog)
+    if date_ref:
+        q = q.filter(models.ScanLog.scanned_for == date_ref)
+    logs = q.order_by(models.ScanLog.created_at.asc()).all()
+    # Enrich with user_name
+    user_ids = {l.user_id for l in logs if l.user_id}
+    names: dict[int, str] = {}
+    if user_ids:
+        users = db.query(models.User).filter(models.User.id.in_(user_ids)).all()
+        for u in users:
+            names[u.id] = (u.social_name or u.full_name)
+    result: list[dict] = []
+    for l in logs:
+        item = {
+            "id": l.id,
+            "created_at": l.created_at,
+            "raw": l.raw,
+            "token_type": l.token_type,
+            "scanned_for": l.scanned_for,
+            "ticket_number": l.ticket_number,
+            "ok": l.ok,
+            "error": l.error,
+            "user_id": l.user_id,
+            "session_id": l.session_id,
+            "user_name": names.get(l.user_id or -1),
+        }
+        result.append(item)
+    return result
+
+
+@app.get("/reports/scan-logs/summary", response_model=schemas.ScanLogsSummary)
+def scan_logs_summary(date_ref: date, db: Session = Depends(get_db)):
+    _ensure_scanlog_table()
+    q = db.query(models.ScanLog).filter(models.ScanLog.scanned_for == date_ref)
+    total = q.count()
+    success = q.filter(models.ScanLog.ok == True).count()
+    failure = total - success
+    return schemas.ScanLogsSummary(
+        date_ref=date_ref,
+        total=total,
+        success=success,
+        failure=failure,
+    )
+
+
+@app.post("/admin/policies/enforce-absence-deactivation")
+def enforce_absence_deactivation(months: int = 6, db: Session = Depends(get_db)):
+    """Apply the auto-deactivation policy now. Suggested to run via cron."""
+    return enforce_auto_deactivation(db, months=months)
 
 
 @app.post(
@@ -224,10 +483,11 @@ def register_pass_absence(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
     absence_date = payload.date or date.today()
+    notes = payload.notes or "Ausência registrada manualmente"
     session = passes.register_absence(
         db,
         user_id=user_id,
         scheduled_date=absence_date,
-        notes=payload.notes,
+        notes=notes,
     )
     return session

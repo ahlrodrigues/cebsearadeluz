@@ -1,14 +1,30 @@
 from contextlib import contextmanager
 from typing import Generator
 
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./app.db"
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+# Allow overriding the database via env var so tests and dev can isolate DBs
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+
+
+def _make_engine(url: str):
+    # For SQLite, configure safe defaults to avoid long locks
+    if url.startswith("sqlite://"):
+        return create_engine(
+            url,
+            connect_args={
+                "check_same_thread": False,
+                # Short timeout so a locked file doesn't stall forever
+                "timeout": 5.0,
+            },
+        )
+    return create_engine(url)
+
+
+engine = _make_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

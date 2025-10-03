@@ -146,3 +146,22 @@ class ExamRecord(Base):
     )
 
     user = relationship("User", back_populates="exam_record")
+
+
+class ScanLog(Base):
+    __tablename__ = "scan_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    raw = Column(Text, nullable=True)
+    token_type = Column(String(20), nullable=True)
+    scanned_for = Column(Date, nullable=True)
+    ticket_number = Column(Integer, nullable=True)
+    ok = Column(Boolean, default=False, nullable=False)
+    error = Column(String(255), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    session_id = Column(Integer, ForeignKey("pass_sessions.id"), nullable=True)

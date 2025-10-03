@@ -39,6 +39,20 @@ export interface PassOccurrencePayload {
   notes?: string;
 }
 
+export interface PassScanPayload {
+  token?: string;
+  user_id?: number;
+  date?: string;
+  notes?: string;
+}
+
+export interface ScanKioskResponse {
+  ticket_number: number;
+  user_id: number;
+  user_name: string;
+  session: PassSession;
+}
+
 export const fetchPassCycles = async (userId: number): Promise<PassCycle[]> => {
   const response = await apiClient.get<PassCycle[]>(
     `/users/${userId}/pass-cycles`,
@@ -72,6 +86,23 @@ export const registerPassAbsence = async (
 ): Promise<PassSession> => {
   const response = await apiClient.post<PassSession>(
     `/users/${userId}/passes/absence`,
+    payload,
+  );
+  return response.data;
+};
+
+export const scanPassPresence = async (
+  payload: PassScanPayload,
+): Promise<PassSession> => {
+  const response = await apiClient.post<PassSession>(`/passes/scan`, payload);
+  return response.data;
+};
+
+export const scanPassPresenceKiosk = async (
+  payload: PassScanPayload,
+): Promise<ScanKioskResponse> => {
+  const response = await apiClient.post<ScanKioskResponse>(
+    `/passes/scan-kiosk`,
     payload,
   );
   return response.data;

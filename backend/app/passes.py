@@ -29,7 +29,8 @@ ASSISTANCE_DAY_TO_WEEKDAY = {
     schemas.AssistanceDay.DOMINGO.value: 6,
 }
 AUTO_ABSENCE_NOTE = "Ausência registrada automaticamente."
-AUTO_PRESENCE_NOTE = "Presença registrada automaticamente."
+AUTO_PRESENCE_NOTE = "Presença registrada automaticamente"
+RESTART_CYCLE_NOTE = "Reiniciando ciclo de passes"
 
 
 def _utcnow() -> datetime:
@@ -258,6 +259,18 @@ def _count_consecutive_absences(db: Session, cycle_id: int) -> int:
     return count
 
 
+def _count_total_absences(db: Session, cycle_id: int) -> int:
+    return (
+        db.query(func.count(models.PassSession.id))
+        .filter(
+            models.PassSession.cycle_id == cycle_id,
+            models.PassSession.status == schemas.PassSessionStatus.AUSENTE.value,
+        )
+        .scalar()
+        or 0
+    )
+
+
 def register_presence(
     db: Session,
     *,
@@ -279,9 +292,9 @@ def register_presence(
             assistance_day=assistance_day,
         )
 
-    consecutive_absences = _count_consecutive_absences(db, cycle.id)
-
-    if consecutive_absences > 1:
+    # regra de reinício: 2 ausências no ciclo (independente de serem consecutivas)
+    total_absences = _count_total_absences(db, cycle.id)
+    if total_absences >= 2:
         _interrupt_cycle(db, cycle, interrupted_at=presence_date)
         db.flush()
         cycle = create_pass_cycle(
@@ -292,7 +305,10 @@ def register_presence(
             start_date=presence_date,
             assistance_day=assistance_day,
         )
-        consecutive_absences = 0
+        # Anota nas observações da primeira presença do novo ciclo
+        presence_note = RESTART_CYCLE_NOTE
+    else:
+        presence_note = notes
 
     session = models.PassSession(
         cycle_id=cycle.id,
@@ -300,7 +316,7 @@ def register_presence(
         scheduled_for=presence_date,
         status=schemas.PassSessionStatus.PRESENTE.value,
         presence_recorded_at=_utcnow(),
-        notes=notes,
+        notes=presence_note,
     )
     db.add(session)
 
@@ -365,6 +381,6 @@ def register_absence(
         db,
         cycle,
         scheduled_for=scheduled_date,
-        notes=notes,
+        notes=notes or AUTO_ABSENCE_NOTE,
     )
     return session_record

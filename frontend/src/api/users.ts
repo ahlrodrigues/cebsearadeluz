@@ -69,6 +69,10 @@ export interface UserQrResponse {
   name: string;
 }
 
+export interface UserQrTokenResponse {
+  token: string;
+}
+
 export interface UserFilters {
   search?: string;
   status?: UserStatus;
@@ -177,6 +181,15 @@ export const getUserQrData = async (
   userId: number,
 ): Promise<UserQrResponse> => {
   const response = await apiClient.get<UserQrResponse>(`/users/${userId}/qr`);
+  return response.data;
+};
+
+export const getUserQrToken = async (
+  userId: number,
+): Promise<UserQrTokenResponse> => {
+  const response = await apiClient.get<UserQrTokenResponse>(
+    `/users/${userId}/qr-token`,
+  );
   return response.data;
 };
 

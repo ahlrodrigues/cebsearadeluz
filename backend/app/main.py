@@ -33,6 +33,8 @@ if auth_router is not None:
 # Only JWT QR tokens are accepted by default. Set ALLOW_LEGACY_QR=1 to
 # temporarily accept numeric/JSON QR payloads during migration.
 ALLOW_LEGACY_QR = os.getenv("ALLOW_LEGACY_QR", "0") == "1"
+# Public registration can optionally require approval (user starts as Desativado)
+REQUIRE_REGISTRATION_APPROVAL = os.getenv("REQUIRE_REGISTRATION_APPROVAL", "0") == "1"
 
 
 @app.post("/users", response_model=schemas.User, status_code=status.HTTP_201_CREATED)
@@ -174,6 +176,24 @@ def get_user_qr(user_id: int, db: Session = Depends(get_db)):
     return schemas.UserQRCode(id=user.id, name=display_name)
 
 
+@app.post(
+    "/public/register",
+    response_model=schemas.PublicRegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def public_register(payload: schemas.PublicRegisterRequest, db: Session = Depends(get_db)):
+    user_in = schemas.UserCreate(**payload.model_dump())
+    desired_status = (
+        schemas.UserStatus.DESATIVADO if REQUIRE_REGISTRATION_APPROVAL else schemas.UserStatus.ATIVO
+    )
+    user_in.role = schemas.UserRole.USER
+    user_in.status = desired_status
+    user = crud.create_user(db, user_in)
+    return schemas.PublicRegisterResponse(
+        id=user.id, status=schemas.UserStatus(user.status), role=schemas.UserRole(user.role)
+    )
+
+
 @app.get("/me", response_model=schemas.User)
 def me(payload = Depends(get_current_user_token), db: Session = Depends(get_db)):
     user = crud.get_user(db, int(getattr(payload, 'sub', 0)))
@@ -189,6 +209,21 @@ def me_qr_token(payload = Depends(get_current_user_token), db: Session = Depends
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     from .auth_tokens import create_qr_token
     return {"token": create_qr_token(str(user.id), user.role or "user")}
+
+
+@app.get("/me/pass-cycles", response_model=list[schemas.PassCycle])
+def me_pass_cycles(payload = Depends(get_current_user_token), db: Session = Depends(get_db)):
+    uid = int(getattr(payload, 'sub', 0))
+    return passes.list_cycles(db, uid)
+
+
+@app.get("/me/pass-cycles/active", response_model=schemas.PassCycle)
+def me_active_pass_cycle(payload = Depends(get_current_user_token), db: Session = Depends(get_db)):
+    uid = int(getattr(payload, 'sub', 0))
+    cycle = passes.get_active_cycle(db, uid)
+    if not cycle:
+        raise HTTPException(status_code=404, detail="Usuário não possui ciclo de passes ativo.")
+    return cycle
 
 
 @app.get("/users/{user_id}/qr-token")
@@ -493,6 +528,61 @@ def scan_logs_summary(date_ref: date, db: Session = Depends(get_db), _=Depends(r
 def enforce_absence_deactivation(months: int = 6, db: Session = Depends(get_db), _=Depends(require_roles(["admin"]))):
     """Apply the auto-deactivation policy now. Suggested to run via cron."""
     return enforce_auto_deactivation(db, months=months)
+
+
+@app.get("/interviews/completed")
+def interviews_completed(
+    search: str | None = None,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["interviewer", "admin"]))
+):
+    # List users who have an ExamRecord, with next pass date from active cycle
+    from sqlalchemy.orm import selectinload
+    from sqlalchemy import func, or_
+    q = (
+        db.query(models.User)
+        .options(selectinload(models.User.pass_cycles).selectinload(models.PassCycle.sessions))
+        .join(models.ExamRecord, models.ExamRecord.user_id == models.User.id)
+    )
+    if search:
+        s = f"%{search.lower()}%"
+        q = q.filter(
+            or_(
+                func.lower(models.User.full_name).like(s),
+                func.lower(func.coalesce(models.User.social_name, "")).like(s),
+            )
+        )
+    users = q.all()
+    items = []
+    for u in users:
+        active = None
+        for c in u.pass_cycles:
+            if c.status == schemas.PassCycleStatus.ATIVO.value:
+                if active is None or (
+                    c.started_at and active.started_at and c.started_at > active.started_at
+                ):
+                    active = c
+        next_date = None
+        pass_type = None
+        if active:
+            last_date = None
+            for s in active.sessions:
+                if last_date is None or s.scheduled_for > last_date:
+                    last_date = s.scheduled_for
+            if last_date is not None:
+                next_date = passes.compute_next_assistance_date(u.assistance_day, last_date)
+            else:
+                next_date = active.started_at
+            pass_type = active.pass_type
+        items.append(
+            {
+                "id": u.id,
+                "name": u.social_name or u.full_name,
+                "next_pass_date": next_date,
+                "pass_type": pass_type,
+            }
+        )
+    return items
 
 
 @app.post(

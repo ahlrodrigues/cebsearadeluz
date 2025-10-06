@@ -2,6 +2,7 @@ import { AppBar, Box, Button, Container, Stack, Toolbar, Typography } from '@mui
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import { Outlet, Link as RouterLink, useLocation } from 'react-router-dom'
+import { useAuth } from '../../auth/useAuth'
 
 const AppLayout = () => {
   const location = useLocation()
@@ -9,6 +10,7 @@ const AppLayout = () => {
   const isCreateUser = location.pathname === '/users/new'
   const isKiosk = location.pathname === '/kiosk'
   const isReports = location.pathname.startsWith('/reports')
+  const { session } = useAuth()
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -52,6 +54,15 @@ const AppLayout = () => {
             >
               Relatórios
             </Button>
+            {session?.role === 'user' && (
+              <>
+                <Button component={RouterLink} to="/app/assistido/qr" color="inherit">Meu QR</Button>
+                <Button component={RouterLink} to="/app/assistido/passes" color="inherit">Meus passes</Button>
+              </>
+            )}
+            {(session?.role === 'interviewer' || session?.role === 'admin') && (
+              <Button component={RouterLink} to="/interviews" color="inherit">Entrevistas</Button>
+            )}
           </Stack>
         </Toolbar>
       </AppBar>

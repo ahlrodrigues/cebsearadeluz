@@ -52,6 +52,16 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=8, max_length=128)
 
 
+class PublicRegisterRequest(UserCreate):
+    pass
+
+
+class PublicRegisterResponse(BaseModel):
+    id: int
+    status: UserStatus
+    role: UserRole
+
+
 class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
     social_name: Optional[str] = Field(None, max_length=255)

@@ -39,7 +39,10 @@ def favicon():
 
 # Only JWT QR tokens are accepted by default. Set ALLOW_LEGACY_QR=1 to
 # temporarily accept numeric/JSON QR payloads during migration.
+# Optionally accept legacy QR tokens
 ALLOW_LEGACY_QR = os.getenv("ALLOW_LEGACY_QR", "0") == "1"
+# Optionally protect /users/{id}/exam with roles ['exame','admin']
+PROTECT_EXAM_ROUTES = os.getenv("PROTECT_EXAM_ROUTES", "0") == "1"
 # Public registration can optionally require approval (user starts as Desativado)
 REQUIRE_REGISTRATION_APPROVAL = os.getenv("REQUIRE_REGISTRATION_APPROVAL", "0") == "1"
 
@@ -113,7 +116,11 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/users/{user_id}/exam", response_model=schemas.ExamRecord)
-def get_exam_record(user_id: int, db: Session = Depends(get_db)):
+def get_exam_record(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["exame","admin"])) if PROTECT_EXAM_ROUTES else None,
+):
     user = crud.get_user(db, user_id)
     if not user:
         raise HTTPException(
@@ -138,6 +145,7 @@ def create_exam_record(
     user_id: int,
     exam_in: schemas.ExamRecordCreate,
     db: Session = Depends(get_db),
+    _=Depends(require_roles(["exame","admin"])) if PROTECT_EXAM_ROUTES else None,
 ):
     user = crud.get_user(db, user_id)
     if not user:
@@ -160,6 +168,7 @@ def upsert_exam_record(
     user_id: int,
     exam_in: schemas.ExamRecordUpdate,
     db: Session = Depends(get_db),
+    _=Depends(require_roles(["exame","admin"])) if PROTECT_EXAM_ROUTES else None,
 ):
     user = crud.get_user(db, user_id)
     if not user:

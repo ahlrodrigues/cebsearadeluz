@@ -27,6 +27,41 @@ Este repositório inicia o desenvolvimento do sistema de cadastro de usuários s
 pytest backend/app/tests
 ```
 
+## CI no GitHub
+
+O repositório inclui um workflow em `.github/workflows/ci.yml` que:
+- Executa `pytest` no backend (SQLite)
+- Roda `npm run lint` e `npm run build` no frontend
+
+## Docker
+
+Por que usar Docker?
+- Reprodutibilidade: a mesma imagem roda em dev, CI e produção.
+- Isolamento: dependências do Python/Node não “vazam” para o host.
+- Deploy simples: basta subir containers e variáveis de ambiente.
+- Escala: orquestração (ECS/Kubernetes) quando crescer.
+
+Arquivos:
+- `backend/Dockerfile` — API FastAPI (porta 8000)
+- `frontend/Dockerfile` — build + Nginx (porta 80)
+- `docker-compose.yml` — sobe backend (8000) e frontend (8080)
+
+Rodar com Docker Compose:
+```bash
+docker compose up --build
+```
+- Backend: http://127.0.0.1:8000
+- Frontend: http://127.0.0.1:8080
+
+## Seed de usuários demo
+
+Crie usuários com papéis (admin, recepcao, entrevista, exame, user) e um assistido com ficha de exame:
+```bash
+DATABASE_URL=sqlite:///./app.db python -m backend.scripts.seed_demo_auth
+```
+Todos com senha `Demo@1234`.
+
+
 ### Módulo de passes
 
 - O painel administrativo agora possui a rota `/users/:id/passes`, onde é possível acompanhar a sequência de passes de cada assistido, registrar presenças/ausências e visualizar o histórico completo.

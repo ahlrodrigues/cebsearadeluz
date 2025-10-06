@@ -12,8 +12,10 @@ const MyQrPage = () => {
       setError(null)
       const { token } = await getMyQrToken()
       setToken(token)
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || e?.message || 'Erro ao carregar QR')
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      const message = (e as Error)?.message
+      setError(String(detail || message || 'Erro ao carregar QR'))
     }
   }
 
@@ -44,4 +46,3 @@ const MyQrPage = () => {
 }
 
 export default MyQrPage
-

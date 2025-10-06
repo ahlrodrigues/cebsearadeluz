@@ -25,8 +25,10 @@ const SignupPage = () => {
           : 'Cadastro criado! Você já pode fazer login.'
       )
       setTimeout(() => navigate('/login', { replace: true }), 1200)
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || 'Falha no cadastro')
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      const message = (err as Error)?.message
+      setError(String(detail || message || 'Falha no cadastro'))
     } finally {
       setLoading(false)
     }
@@ -54,4 +56,3 @@ const SignupPage = () => {
 }
 
 export default SignupPage
-

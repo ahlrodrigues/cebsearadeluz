@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import AppLayout from './components/layout/AppLayout'
 import LoginPage from './pages/LoginPage'
-import { PrivateRoute } from './auth/RouteGuards'
 import CreateUserPage from './pages/users/CreateUserPage'
 import EditUserPage from './pages/users/EditUserPage'
 import UserListPage from './pages/users/UserListPage'
@@ -58,7 +57,7 @@ const App = () => {
           path="/interviews"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["interviewer","admin"]}>
+              <RoleRoute roles={["entrevista","admin"]}>
                 <InterviewDashboard />
               </RoleRoute>
             </PrivateRoute>

@@ -7,7 +7,7 @@ export function PrivateRoute({ children }: { children: JSX.Element }) {
   return children;
 }
 
-export function RoleRoute({ roles, children }: { roles: Array<"user"|"interviewer"|"admin">; children: JSX.Element }) {
+export function RoleRoute({ roles, children }: { roles: Array<"user"|"entrevista"|"recepcao"|"exame"|"admin">; children: JSX.Element }) {
   const { session } = useAuth();
   if (!session) return <Navigate to="/login" replace />;
   if (!roles.includes(session.role)) return <Navigate to="/403" replace />;

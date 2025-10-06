@@ -11,8 +11,10 @@ class UserStatus(str, Enum):
 
 
 class UserRole(str, Enum):
-    USER = "user"
-    INTERVIEWER = "interviewer"
+    USER = "user"           # assistido
+    ENTREVISTA = "entrevista"
+    RECEPCAO = "recepcao"
+    EXAME = "exame"
     ADMIN = "admin"
 
 
@@ -289,3 +291,15 @@ class ExamRecord(ExamRecordBase):
     updated_at: Optional[dt.datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ExamScheduleRequest(BaseModel):
+    date: dt.date
+
+
+class ExamQueueItem(BaseModel):
+    user_id: int
+    name: str
+    cycle_id: int
+    pass_type: Optional[str] = None
+    scheduled_for: Optional[dt.date] = None

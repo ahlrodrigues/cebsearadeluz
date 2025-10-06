@@ -21,8 +21,10 @@ const LoginPage = () => {
       const id = session?.userId
       if (role === 'user' && id) navigate(`/users/${id}/qr`, { replace: true })
       else navigate('/users', { replace: true })
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || 'Falha no login')
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      const message = (err as Error)?.message
+      setError(String(detail || message || 'Falha no login'))
     } finally {
       setLoading(false)
     }
@@ -48,4 +50,3 @@ const LoginPage = () => {
 }
 
 export default LoginPage
-

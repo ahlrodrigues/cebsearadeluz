@@ -36,31 +36,35 @@ const AppLayout = () => {
             >
               Novo cadastro
             </Button>
-            <Button
-              component={RouterLink}
-              to="/kiosk"
-              color="inherit"
-              variant={isKiosk ? 'outlined' : 'text'}
-              startIcon={<QrCodeScannerIcon />}
-            >
-              Presenças
-            </Button>
-            <Button
-              component={RouterLink}
-              to="/reports/scans"
-              color="inherit"
-              variant={isReports ? 'outlined' : 'text'}
-              startIcon={<AssessmentIcon />}
-            >
-              Relatórios
-            </Button>
+            {(session?.role === 'recepcao' || session?.role === 'admin') && (
+              <Button
+                component={RouterLink}
+                to="/kiosk"
+                color="inherit"
+                variant={isKiosk ? 'outlined' : 'text'}
+                startIcon={<QrCodeScannerIcon />}
+              >
+                Presenças
+              </Button>
+            )}
+            {session?.role === 'admin' && (
+              <Button
+                component={RouterLink}
+                to="/reports/scans"
+                color="inherit"
+                variant={isReports ? 'outlined' : 'text'}
+                startIcon={<AssessmentIcon />}
+              >
+                Relatórios
+              </Button>
+            )}
             {session?.role === 'user' && (
               <>
                 <Button component={RouterLink} to="/app/assistido/qr" color="inherit">Meu QR</Button>
                 <Button component={RouterLink} to="/app/assistido/passes" color="inherit">Meus passes</Button>
               </>
             )}
-            {(session?.role === 'interviewer' || session?.role === 'admin') && (
+            {(session?.role === 'entrevista' || session?.role === 'admin') && (
               <Button component={RouterLink} to="/interviews" color="inherit">Entrevistas</Button>
             )}
           </Stack>

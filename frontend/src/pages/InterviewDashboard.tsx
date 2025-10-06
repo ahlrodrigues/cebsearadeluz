@@ -12,8 +12,10 @@ const InterviewDashboard = () => {
       setError(null)
       const data = await fetchCompletedInterviews(search.trim() || undefined)
       setItems(data)
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || e?.message || 'Erro ao carregar lista')
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      const message = (e as Error)?.message
+      setError(String(detail || message || 'Erro ao carregar lista'))
     }
   }
 
@@ -61,4 +63,3 @@ const InterviewDashboard = () => {
 }
 
 export default InterviewDashboard
-

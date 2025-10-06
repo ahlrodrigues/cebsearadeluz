@@ -12,8 +12,10 @@ const MyPassesPage = () => {
       setError(null)
       const data = await fetchMyPassCycles()
       setCycles(data)
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || e?.message || 'Erro ao carregar passes')
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      const message = (e as Error)?.message
+      setError(String(detail || message || 'Erro ao carregar passes'))
     }
   }
 
@@ -70,4 +72,3 @@ const MyPassesPage = () => {
 }
 
 export default MyPassesPage
-

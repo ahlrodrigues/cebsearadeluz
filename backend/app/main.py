@@ -2,6 +2,7 @@ import os
 from datetime import date
 
 from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,12 @@ app.add_middleware(
 # Routers
 if auth_router is not None:
     app.include_router(auth_router.router)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    # Avoid 404 noise when browsers request favicon on backend host
+    return Response(status_code=204)
 
 # Only JWT QR tokens are accepted by default. Set ALLOW_LEGACY_QR=1 to
 # temporarily accept numeric/JSON QR payloads during migration.
@@ -386,7 +393,7 @@ def _log_scan(
     response_model=schemas.ScanKioskResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def scan_kiosk(payload: schemas.QRScanRequest, db: Session = Depends(get_db)):
+def scan_kiosk(payload: schemas.QRScanRequest, db: Session = Depends(get_db), _=Depends(require_roles(["recepcao","admin"]))):
     raw = payload.token
     token_type: str | None = None
     resolved_user_id: int | None = None
@@ -534,7 +541,7 @@ def enforce_absence_deactivation(months: int = 6, db: Session = Depends(get_db),
 def interviews_completed(
     search: str | None = None,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(["interviewer", "admin"]))
+    _=Depends(require_roles(["entrevista", "admin"]))
 ):
     # List users who have an ExamRecord, with next pass date from active cycle
     from sqlalchemy.orm import selectinload
@@ -583,6 +590,79 @@ def interviews_completed(
             }
         )
     return items
+
+
+@app.get("/exams/queue", response_model=list[schemas.ExamQueueItem])
+def exams_queue(db: Session = Depends(get_db), _=Depends(require_roles(["exame","admin"]))):
+    # Latest concluded cycles that require interview and not yet completed
+    from sqlalchemy.orm import joinedload
+    q = (
+        db.query(models.PassCycle)
+        .options(joinedload(models.PassCycle.user))
+        .filter(
+            models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
+            models.PassCycle.requires_interview == True,
+            models.PassCycle.interview_completed_at.is_(None),
+        )
+        .order_by(models.PassCycle.completed_at.desc())
+    )
+    items: list[dict] = []
+    for c in q.all():
+        u = c.user
+        items.append({
+            "user_id": u.id,
+            "name": (u.social_name or u.full_name),
+            "cycle_id": c.id,
+            "pass_type": c.pass_type,
+            "scheduled_for": c.interview_scheduled_for,
+        })
+    return items
+
+
+@app.put("/exams/{user_id}/schedule", response_model=schemas.PassCycle)
+def exams_schedule(user_id: int, payload: schemas.ExamScheduleRequest, db: Session = Depends(get_db), _=Depends(require_roles(["exame","admin"]))):
+    # Set interview_scheduled_for on the most recent concluded cycle requiring interview
+    c = (
+        db.query(models.PassCycle)
+        .filter(
+            models.PassCycle.user_id == user_id,
+            models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
+            models.PassCycle.requires_interview == True,
+        )
+        .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
+        .first()
+    )
+    if not c:
+        raise HTTPException(status_code=404, detail="Nenhum ciclo elegível para agendamento.")
+    c.interview_scheduled_for = payload.date
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return c
+
+
+@app.post("/exams/{user_id}/complete", response_model=schemas.PassCycle)
+def exams_complete(user_id: int, db: Session = Depends(get_db), _=Depends(require_roles(["exame","admin"]))):
+    # Mark interview as completed now
+    c = (
+        db.query(models.PassCycle)
+        .filter(
+            models.PassCycle.user_id == user_id,
+            models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
+            models.PassCycle.requires_interview == True,
+            models.PassCycle.interview_completed_at.is_(None),
+        )
+        .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
+        .first()
+    )
+    if not c:
+        raise HTTPException(status_code=404, detail="Nenhum ciclo pendente de entrevista.")
+    from datetime import datetime, timezone
+    c.interview_completed_at = datetime.now(timezone.utc)
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return c
 
 
 @app.post(

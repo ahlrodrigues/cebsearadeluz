@@ -1,7 +1,7 @@
 import axios from "axios";
 import { refresh } from "./auth";
 
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? "";
 export const http = axios.create({ baseURL });
 
 let accessToken: string | null = null;

@@ -12,6 +12,7 @@ class UserStatus(str, Enum):
 
 class UserRole(str, Enum):
     USER = "user"
+    INTERVIEWER = "interviewer"
     ADMIN = "admin"
 
 

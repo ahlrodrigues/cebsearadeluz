@@ -7,6 +7,11 @@ from sqlalchemy.orm import Session
 
 from . import crud, models, passes, schemas
 from .database import Base, engine, get_db
+try:
+    from .routers import auth as auth_router
+except Exception:  # pragma: no cover - allow tests without auth deps
+    auth_router = None
+from .deps_auth import get_current_user_token, require_roles
 from .policies import enforce_auto_deactivation
 
 app = FastAPI(title="User Management API", version="0.1.0")
@@ -20,6 +25,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Routers
+if auth_router is not None:
+    app.include_router(auth_router.router)
 
 # Only JWT QR tokens are accepted by default. Set ALLOW_LEGACY_QR=1 to
 # temporarily accept numeric/JSON QR payloads during migration.
@@ -163,6 +172,23 @@ def get_user_qr(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
     display_name = user.social_name or user.full_name
     return schemas.UserQRCode(id=user.id, name=display_name)
+
+
+@app.get("/me", response_model=schemas.User)
+def me(payload = Depends(get_current_user_token), db: Session = Depends(get_db)):
+    user = crud.get_user(db, int(getattr(payload, 'sub', 0)))
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    return user
+
+
+@app.get("/me/qr-token")
+def me_qr_token(payload = Depends(get_current_user_token), db: Session = Depends(get_db)):
+    user = crud.get_user(db, int(getattr(payload, 'sub', 0)))
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    from .auth_tokens import create_qr_token
+    return {"token": create_qr_token(str(user.id), user.role or "user")}
 
 
 @app.get("/users/{user_id}/qr-token")
@@ -416,7 +442,7 @@ def scan_kiosk(payload: schemas.QRScanRequest, db: Session = Depends(get_db)):
 
 
 @app.get("/reports/scan-logs", response_model=list[schemas.ScanLogView])
-def list_scan_logs(date_ref: date | None = None, db: Session = Depends(get_db)):
+def list_scan_logs(date_ref: date | None = None, db: Session = Depends(get_db), _=Depends(require_roles(["admin"]))):
     _ensure_scanlog_table()
     q = db.query(models.ScanLog)
     if date_ref:
@@ -449,7 +475,7 @@ def list_scan_logs(date_ref: date | None = None, db: Session = Depends(get_db)):
 
 
 @app.get("/reports/scan-logs/summary", response_model=schemas.ScanLogsSummary)
-def scan_logs_summary(date_ref: date, db: Session = Depends(get_db)):
+def scan_logs_summary(date_ref: date, db: Session = Depends(get_db), _=Depends(require_roles(["admin"]))):
     _ensure_scanlog_table()
     q = db.query(models.ScanLog).filter(models.ScanLog.scanned_for == date_ref)
     total = q.count()
@@ -464,7 +490,7 @@ def scan_logs_summary(date_ref: date, db: Session = Depends(get_db)):
 
 
 @app.post("/admin/policies/enforce-absence-deactivation")
-def enforce_absence_deactivation(months: int = 6, db: Session = Depends(get_db)):
+def enforce_absence_deactivation(months: int = 6, db: Session = Depends(get_db), _=Depends(require_roles(["admin"]))):
     """Apply the auto-deactivation policy now. Suggested to run via cron."""
     return enforce_auto_deactivation(db, months=months)
 

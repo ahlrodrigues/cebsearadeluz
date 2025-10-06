@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-export type Role = "user" | "admin";
+export type Role = "user" | "interviewer" | "admin";
 
 export type Session = { userId: string; role: Role } | null;
 
@@ -11,5 +11,4 @@ export type AuthCtx = {
 };
 
 export const Ctx = createContext<AuthCtx>(null!);
-
 

@@ -43,6 +43,8 @@ def favicon():
 ALLOW_LEGACY_QR = os.getenv("ALLOW_LEGACY_QR", "0") == "1"
 # Optionally protect /users/{id}/exam with roles ['exame','admin']
 PROTECT_EXAM_ROUTES = os.getenv("PROTECT_EXAM_ROUTES", "0") == "1"
+# Optionally protect the generic scan endpoint (recommend enabled)
+PROTECT_PUBLIC_SCAN = os.getenv("PROTECT_PUBLIC_SCAN", "1") == "1"
 # Public registration can optionally require approval (user starts as Desativado)
 REQUIRE_REGISTRATION_APPROVAL = os.getenv("REQUIRE_REGISTRATION_APPROVAL", "0") == "1"
 
@@ -243,7 +245,11 @@ def me_active_pass_cycle(payload = Depends(get_current_user_token), db: Session 
 
 
 @app.get("/users/{user_id}/qr-token")
-def get_user_qr_token(user_id: int, db: Session = Depends(get_db)):
+def get_user_qr_token(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["admin"]))
+):
     user = crud.get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
@@ -301,7 +307,11 @@ def register_pass_presence(
 
 
 @app.post("/passes/scan", response_model=schemas.PassSession, status_code=status.HTTP_201_CREATED)
-def scan_qr_and_register_presence(payload: schemas.QRScanRequest, db: Session = Depends(get_db)):
+def scan_qr_and_register_presence(
+    payload: schemas.QRScanRequest,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["recepcao","admin"])) if PROTECT_PUBLIC_SCAN else None,
+):
     if not payload.token and not payload.user_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Forneça 'token' ou 'user_id'.")
 

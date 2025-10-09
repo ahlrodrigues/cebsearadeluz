@@ -12,7 +12,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Opcional: decodificar o access JWT para pegar sub/role
     const payload = JSON.parse(atob(pair.access_token.split(".")[1]));
-    setSession({ userId: payload.sub, role: payload.role });
+    const next = { userId: String(payload.sub), role: payload.role };
+    setSession(next);
+    return next;
   }
 
   function signout() {

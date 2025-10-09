@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Box, Container, Paper, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Checkbox, Container, FormControlLabel, Paper, Stack, TextField, Typography } from '@mui/material'
 import { scanPassPresenceKiosk, type ScanKioskResponse } from '../api/passes'
 
 type Entry = {
@@ -15,6 +15,7 @@ const KioskPage = () => {
   const [entries, setEntries] = useState<Entry[]>([])
   const [error, setError] = useState<string | null>(null)
   const [banner, setBanner] = useState<{ ok: boolean; userName?: string; ticket?: number; message: string } | null>(null)
+  const [printOnSuccess, setPrintOnSuccess] = useState<boolean>(false)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -60,6 +61,9 @@ const KioskPage = () => {
       pushEntry(true, `#${res.ticket_number} • ${res.user_name} • sessão ${res.session.sequence_index}`)
       setBanner({ ok: true, userName: res.user_name, ticket: res.ticket_number, message: `Sessão ${res.session.sequence_index}` })
       playTone(true)
+      if (printOnSuccess) {
+        setTimeout(() => window.print(), 100)
+      }
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       const message = (e as Error)?.message || 'Erro'
@@ -101,6 +105,10 @@ const KioskPage = () => {
             </Alert>
           )}
           <Typography variant="body2" color="text.secondary">Aponte o leitor para o QR e aguarde a confirmação.</Typography>
+          <FormControlLabel
+            control={<Checkbox checked={printOnSuccess} onChange={(e) => setPrintOnSuccess(e.target.checked)} />}
+            label="Imprimir ticket automaticamente ao registrar"
+          />
           <Box>
             <TextField
               inputRef={inputRef}

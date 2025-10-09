@@ -3,6 +3,7 @@ import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import { Outlet, Link as RouterLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth'
+import InstallPwaButton from '../InstallPwaButton'
 
 const AppLayout = () => {
   const location = useLocation()
@@ -62,6 +63,7 @@ const AppLayout = () => {
               <>
                 <Button component={RouterLink} to="/app/assistido/qr" color="inherit">Meu QR</Button>
                 <Button component={RouterLink} to="/app/assistido/passes" color="inherit">Meus passes</Button>
+                <InstallPwaButton />
               </>
             )}
             {(session?.role === 'entrevista' || session?.role === 'admin') && (

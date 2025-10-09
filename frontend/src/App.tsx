@@ -14,6 +14,7 @@ import ScanLogsPage from './pages/reports/ScanLogsPage'
 import SignupPage from './pages/assistido/SignupPage'
 import MyQrPage from './pages/assistido/MyQrPage'
 import MyPassesPage from './pages/assistido/MyPassesPage'
+import EditMyProfile from './pages/assistido/EditMyProfile'
 import InterviewDashboard from './pages/InterviewDashboard'
 import { PrivateRoute, RoleRoute } from './auth/RouteGuards'
 
@@ -49,6 +50,16 @@ const App = () => {
             <PrivateRoute>
               <RoleRoute roles={["user"]}>
                 <MyPassesPage />
+              </RoleRoute>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/app/assistido/profile"
+          element={
+            <PrivateRoute>
+              <RoleRoute roles={["user"]}>
+                <EditMyProfile />
               </RoleRoute>
             </PrivateRoute>
           }

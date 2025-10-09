@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { http } from './http'
 import type { PassCycle } from './passes'
 
 export interface PublicRegisterPayload {
@@ -16,7 +16,7 @@ export interface PublicRegisterResponse {
 export const publicRegister = async (
   payload: PublicRegisterPayload,
 ): Promise<PublicRegisterResponse> => {
-  const { data } = await apiClient.post<PublicRegisterResponse>(
+  const { data } = await http.post<PublicRegisterResponse>(
     '/public/register',
     payload,
   )
@@ -24,17 +24,16 @@ export const publicRegister = async (
 }
 
 export const getMyQrToken = async (): Promise<{ token: string }> => {
-  const { data } = await apiClient.get<{ token: string }>(`/me/qr-token`)
+  const { data } = await http.get<{ token: string }>(`/me/qr-token`)
   return data
 }
 
 export const fetchMyPassCycles = async (): Promise<PassCycle[]> => {
-  const { data } = await apiClient.get<PassCycle[]>(`/me/pass-cycles`)
+  const { data } = await http.get<PassCycle[]>(`/me/pass-cycles`)
   return data
 }
 
 export const fetchMyActivePassCycle = async (): Promise<PassCycle> => {
-  const { data } = await apiClient.get<PassCycle>(`/me/pass-cycles/active`)
+  const { data } = await http.get<PassCycle>(`/me/pass-cycles/active`)
   return data
 }
-

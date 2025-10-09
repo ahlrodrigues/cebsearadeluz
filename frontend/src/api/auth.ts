@@ -15,6 +15,8 @@ export async function login(email: string, password: string): Promise<TokenPair>
 }
 
 export async function refresh(refreshToken: string): Promise<TokenPair> {
-  const { data } = await authApi.post<TokenPair>("/auth/refresh", { refresh_token: refreshToken });
+  const { data } = await authApi.post<TokenPair>("/auth/refresh", null, {
+    params: { refresh_token: refreshToken },
+  });
   return data;
 }

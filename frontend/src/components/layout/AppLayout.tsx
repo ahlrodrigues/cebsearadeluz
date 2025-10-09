@@ -21,22 +21,26 @@ const AppLayout = () => {
             CEB Seara da Luz
           </Typography>
           <Stack direction="row" spacing={1}>
-            <Button
-              component={RouterLink}
-              to="/users"
-              color="inherit"
-              variant={isUsersList ? 'outlined' : 'text'}
-            >
-              Assistidos
-            </Button>
-            <Button
-              component={RouterLink}
-              to="/users/new"
-              color="inherit"
-              variant={isCreateUser ? 'outlined' : 'text'}
-            >
-              Novo cadastro
-            </Button>
+            {session?.role !== 'user' && (
+              <>
+                <Button
+                  component={RouterLink}
+                  to="/users"
+                  color="inherit"
+                  variant={isUsersList ? 'outlined' : 'text'}
+                >
+                  Assistidos
+                </Button>
+                <Button
+                  component={RouterLink}
+                  to="/users/new"
+                  color="inherit"
+                  variant={isCreateUser ? 'outlined' : 'text'}
+                >
+                  Novo cadastro
+                </Button>
+              </>
+            )}
             {(session?.role === 'recepcao' || session?.role === 'admin') && (
               <Button
                 component={RouterLink}
@@ -63,6 +67,7 @@ const AppLayout = () => {
               <>
                 <Button component={RouterLink} to="/app/assistido/qr" color="inherit">Meu QR</Button>
                 <Button component={RouterLink} to="/app/assistido/passes" color="inherit">Meus passes</Button>
+                <Button component={RouterLink} to="/app/assistido/profile" color="inherit">Meu cadastro</Button>
                 <InstallPwaButton />
               </>
             )}

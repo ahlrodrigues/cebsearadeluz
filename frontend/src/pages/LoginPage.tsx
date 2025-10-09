@@ -16,10 +16,10 @@ const LoginPage = () => {
     setLoading(true)
     setError(null)
     try {
-      await signin(email, password)
-      const role = session?.role
-      const id = session?.userId
-      if (role === 'user' && id) navigate(`/users/${id}/qr`, { replace: true })
+      const info = await signin(email, password)
+      const role = info?.role
+      const id = info?.userId
+      if (role === 'user') navigate(`/app/assistido/qr`, { replace: true })
       else navigate('/users', { replace: true })
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail

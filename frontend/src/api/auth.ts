@@ -9,14 +9,12 @@ export type TokenPair = {
   token_type: "bearer";
 };
 
-export async function login(username: string, password: string): Promise<TokenPair> {
-  const { data } = await authApi.post<TokenPair>("/auth/login", { username, password });
+export async function login(email: string, password: string): Promise<TokenPair> {
+  const { data } = await authApi.post<TokenPair>("/auth/login", { email, password });
   return data;
 }
 
 export async function refresh(refreshToken: string): Promise<TokenPair> {
-  const { data } = await authApi.post<TokenPair>("/auth/refresh", null, {
-    params: { refresh_token: refreshToken },
-  });
+  const { data } = await authApi.post<TokenPair>("/auth/refresh", { refresh_token: refreshToken });
   return data;
 }

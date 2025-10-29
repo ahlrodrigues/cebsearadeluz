@@ -17,20 +17,30 @@ const InstallPwaButton = () => {
   }, [])
 
   const onInstall = async () => {
-    if (!deferredPrompt) return
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
-    if (outcome !== 'accepted') {
-      // ignore
+    if (deferredPrompt) {
+      deferredPrompt.prompt()
+      try {
+        await deferredPrompt.userChoice
+      } finally {
+        setDeferredPrompt(null)
+      }
+      return
     }
-    setDeferredPrompt(null)
+    // Fallback: instruções simples por plataforma
+    const ua = navigator.userAgent || ''
+    const isIOS = /iPad|iPhone|iPod/.test(ua)
+    const isAndroid = /Android/.test(ua)
+    if (isIOS) {
+      alert('iOS: acesse o menu (Compartilhar) e escolha “Adicionar à Tela de Início”.')
+    } else if (isAndroid) {
+      alert('Android: acesse o menu (⋮) e escolha “Adicionar à tela inicial”.')
+    } else {
+      alert('Desktop: acesse o menu do navegador (Chrome/Edge) e escolha “Instalar app”.')
+    }
   }
 
-  if (!supported) return null
-  return (
-    <Button color="inherit" onClick={onInstall}>Instalar app</Button>
-  )
+  // Sempre exibir um link de texto para instalar
+  return <Button color="inherit" onClick={onInstall}>Instalar app</Button>
 }
 
 export default InstallPwaButton
-

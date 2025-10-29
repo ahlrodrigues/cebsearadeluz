@@ -683,17 +683,14 @@ const UserListPage = () => {
           autoHideDuration={4000}
           onClose={handleCloseSnackbar}
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        >
-          {snackbar && (
-            <Alert
-              onClose={handleCloseSnackbar}
-              severity={snackbar.severity}
-              variant="filled"
-            >
-              {snackbar.message}
-            </Alert>
-          )}
-        </Snackbar>
+          children={
+            snackbar ? (
+              <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled">
+                {snackbar.message}
+              </Alert>
+            ) : undefined
+          }
+        />
       </Stack>
     </Box>
   );

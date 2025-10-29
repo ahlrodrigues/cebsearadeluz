@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { http } from './http'
 
 export interface InterviewItem {
   id: number
@@ -12,10 +12,9 @@ export const fetchCompletedInterviews = async (
 ): Promise<InterviewItem[]> => {
   const params: Record<string, string> = {}
   if (search) params.search = search
-  const { data } = await apiClient.get<InterviewItem[]>(
+  const { data } = await http.get<InterviewItem[]>(
     '/interviews/completed',
     { params },
   )
   return data
 }
-

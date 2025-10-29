@@ -29,10 +29,12 @@ const MyPassesPage = () => {
         <Stack spacing={2}>
           <Typography variant="h5" component="h1">Meus passes</Typography>
           {error && <Alert severity="error">{error}</Alert>}
-          {cycles.map((c) => (
+          {(Array.isArray(cycles) ? cycles : []).map((c) => (
             <Paper key={c.id} sx={{ p: 2 }}>
               <Typography variant="subtitle1">Ciclo {c.stage_number} • {c.pass_type} • {c.status}</Typography>
-              <Typography variant="body2" color="text.secondary">Início: {c.started_at}{c.completed_at ? ` • Concluído: ${c.completed_at}` : ''}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Início: {c.started_at || '-'}{c.completed_at ? ` • Concluído: ${c.completed_at}` : ''}
+              </Typography>
               <Table size="small" sx={{ mt: 1 }}>
                 <TableHead>
                   <TableRow>
@@ -43,7 +45,7 @@ const MyPassesPage = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {c.sessions.map((s: PassSession) => (
+                  {(c.sessions ?? []).map((s: PassSession) => (
                     <TableRow key={s.id}>
                       <TableCell>{s.sequence_index}</TableCell>
                       <TableCell>{s.scheduled_for}</TableCell>

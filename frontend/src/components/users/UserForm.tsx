@@ -21,30 +21,13 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import type { AxiosError } from 'axios'
 
 import type { CreateUserPayload, UpdateUserPayload, UserRole, UserStatus } from '../../api/users'
+import type { UserFormValues } from './types'
 import { lookupCep } from '../../api/cep'
 import { mapToCreatePayload, mapToUpdatePayload, normalizeInitialValues } from './utils'
 
 export type UserFormMode = 'create' | 'edit'
 
-export interface UserFormValues {
-  full_name: string
-  social_name: string
-  birth_date: string
-  cep: string
-  street: string
-  number: string
-  complement: string
-  neighborhood: string
-  city: string
-  state: string
-  phone: string
-  email: string
-  social_network: string
-  status: UserStatus
-  role: UserRole
-  password: string
-  confirm_password: string
-}
+// UserFormValues is defined in ./types to keep a single source of truth
 
 const statusOptions: Array<UserStatus> = ['Ativo', 'Desativado']
 const roleOptions: Array<UserRole> = ['user', 'admin']
@@ -510,11 +493,14 @@ const UserForm = ({
         autoHideDuration={4000}
         onClose={handleSnackbarClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert onClose={handleSnackbarClose} severity="success" variant="filled" sx={{ width: '100%' }}>
-          {resolvedSuccessMessage}
-        </Alert>
-      </Snackbar>
+        children={
+          (
+            <Alert onClose={handleSnackbarClose} severity="success" variant="filled" sx={{ width: '100%' }}>
+              {resolvedSuccessMessage}
+            </Alert>
+          ) as React.ReactElement | undefined
+        }
+      />
     </>
   )
 }

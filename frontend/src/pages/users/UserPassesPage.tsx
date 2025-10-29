@@ -706,17 +706,14 @@ const UserPassesPage = () => {
           autoHideDuration={4000}
           onClose={() => setSnackbar(null)}
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        >
-          {snackbar && (
-            <Alert
-              onClose={() => setSnackbar(null)}
-              severity={snackbar.severity}
-              variant="filled"
-            >
-              {snackbar.message}
-            </Alert>
-          )}
-        </Snackbar>
+          children={
+            snackbar ? (
+              <Alert onClose={() => setSnackbar(null)} severity={snackbar.severity} variant="filled">
+                {snackbar.message}
+              </Alert>
+            ) : undefined
+          }
+        />
       </Stack>
     </Box>
   );

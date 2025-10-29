@@ -9,6 +9,8 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+RESET_TOKEN_EXPIRE_MINUTES = int(os.getenv("RESET_TOKEN_EXPIRE_MINUTES", "30"))
+CONFIRM_TOKEN_EXPIRE_DAYS = int(os.getenv("CONFIRM_TOKEN_EXPIRE_DAYS", "3"))
 
 class TokenPayload(BaseModel):
     sub: str        # user id
@@ -31,6 +33,16 @@ def create_access_token(sub: str, role: str) -> str:
 def create_refresh_token(sub: str, role: str) -> str:
     payload = {"sub": sub, "role": role, "type": "refresh",
                "exp": _exp(days=REFRESH_TOKEN_EXPIRE_DAYS), "iat": int(time.time())}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_reset_token(sub: str) -> str:
+    payload = {"sub": sub, "role": "user", "type": "reset",
+               "exp": _exp(minutes=RESET_TOKEN_EXPIRE_MINUTES), "iat": int(time.time())}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_confirm_token(sub: str) -> str:
+    payload = {"sub": sub, "role": "user", "type": "confirm",
+               "exp": _exp(days=CONFIRM_TOKEN_EXPIRE_DAYS), "iat": int(time.time())}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 def decode_token(token: str) -> Optional[TokenPayload]:

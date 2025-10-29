@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { http } from "./http";
 
 export type ExamRecommendationValue =
   | "evangelho_no_lar"
@@ -34,7 +34,7 @@ export const getExamRecord = async (
   userId: number,
 ): Promise<ExamRecordResponse | null> => {
   try {
-    const response = await apiClient.get<ExamRecordResponse>(
+    const response = await http.get<ExamRecordResponse>(
       `/users/${userId}/exam`,
     );
     return response.data;
@@ -55,7 +55,7 @@ export const createExamRecord = async (
   userId: number,
   payload: ExamRecordCreatePayload,
 ): Promise<ExamRecordResponse> => {
-  const response = await apiClient.post<ExamRecordResponse>(
+  const response = await http.post<ExamRecordResponse>(
     `/users/${userId}/exam`,
     payload,
   );
@@ -66,7 +66,7 @@ export const updateExamRecord = async (
   userId: number,
   payload: ExamRecordUpdatePayload,
 ): Promise<ExamRecordResponse> => {
-  const response = await apiClient.put<ExamRecordResponse>(
+  const response = await http.put<ExamRecordResponse>(
     `/users/${userId}/exam`,
     payload,
   );

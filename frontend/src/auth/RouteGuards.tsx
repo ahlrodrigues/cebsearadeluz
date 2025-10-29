@@ -3,6 +3,8 @@ import { useAuth } from "./useAuth";
 
 export function PrivateRoute({ children }: { children: JSX.Element }) {
   const { session } = useAuth();
+  const hasRefresh = !!localStorage.getItem("refresh_token");
+  if (!session && hasRefresh) return <div />; // aguarda bootstrap silencioso
   if (!session) return <Navigate to="/login" replace />;
   return children;
 }

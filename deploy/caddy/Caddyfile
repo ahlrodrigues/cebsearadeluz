@@ -1,0 +1,13 @@
+# Replace these domains before applying
+
+staging.example.com {
+  encode zstd gzip
+  # Serve the built frontend from the container via HTTP
+  reverse_proxy 127.0.0.1:8080
+}
+
+api-staging.example.com {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:8000
+}
+

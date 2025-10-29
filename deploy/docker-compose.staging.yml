@@ -1,0 +1,33 @@
+version: '3.9'
+services:
+  backend:
+    # Uses existing backend/Dockerfile build
+    environment:
+      # For staging keep SQLite volume, or replace with Postgres URL
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////data/app.db}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOW_LEGACY_QR=${ALLOW_LEGACY_QR:-0}
+      - REQUIRE_REGISTRATION_APPROVAL=${REQUIRE_REGISTRATION_APPROVAL:-0}
+      - PROTECT_EXAM_ROUTES=${PROTECT_EXAM_ROUTES:-1}
+      - PROTECT_PUBLIC_SCAN=${PROTECT_PUBLIC_SCAN:-1}
+      - PROTECT_USER_ADMIN_ROUTES=${PROTECT_USER_ADMIN_ROUTES:-1}
+      - CONFIRM_EMAIL_ON_REGISTER=${CONFIRM_EMAIL_ON_REGISTER:-1}
+      # mail settings (optional)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_STARTTLS=${SMTP_STARTTLS:-1}
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-}
+    volumes:
+      - backend_data:/data
+    restart: unless-stopped
+
+  frontend:
+    # Build arg API_BASE must be set at build time (see deploy/README.md)
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+

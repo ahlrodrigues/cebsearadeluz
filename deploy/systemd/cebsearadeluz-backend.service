@@ -1,0 +1,20 @@
+[Unit]
+Description=CEB Seara de Luz FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+User=cebsearadeluz
+Group=cebsearadeluz
+WorkingDirectory=/opt/cebsearadeluz
+# Carrega variáveis do projeto (SECRET_KEY, SMTP_*, etc.)
+EnvironmentFile=/opt/cebsearadeluz/.env
+# Banco SQLite em diretório de dados dedicado (pode trocar para Postgres via .env)
+Environment=DATABASE_URL=sqlite:////var/lib/cebsearadeluz/app.db
+ExecStart=/opt/cebsearadeluz/venv/bin/uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

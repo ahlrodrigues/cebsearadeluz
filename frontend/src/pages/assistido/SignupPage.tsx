@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Alert, Box, Button, Container, Paper, Stack, TextField, Typography } from '@mui/material'
+import type { AxiosError } from 'axios'
 import { publicRegister } from '../../api/assistido'
 import { useNavigate } from 'react-router-dom'
 
@@ -26,9 +27,15 @@ const SignupPage = () => {
       )
       setTimeout(() => navigate('/login', { replace: true }), 1200)
     } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      const message = (err as Error)?.message
-      setError(String(detail || message || 'Falha no cadastro'))
+      const ax = err as AxiosError<any>
+      let msg: string | undefined
+      const detail = ax?.response?.data?.detail
+      if (typeof detail === 'string') msg = detail
+      else if (Array.isArray(detail)) {
+        msg = detail.map((e: any) => e?.msg || e?.type || '').filter(Boolean).join('; ')
+      }
+      msg = msg || ax?.message || (err as Error)?.message || 'Falha no cadastro'
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -44,7 +51,8 @@ const SignupPage = () => {
             {ok && <Alert severity="success">{ok}</Alert>}
             <TextField label="Nome completo" value={fullName} onChange={(e) => setFullName(e.target.value)} required fullWidth />
             <TextField label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
-            <TextField label="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
+            <TextField label="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth helperText="Mínimo 8 caracteres." />
+            <Alert severity="info">Após criar a conta, você poderá completar seus dados em "Meu cadastro". Em ambientes com confirmação por e‑mail, ative sua conta pelo link recebido.</Alert>
             <Box>
               <Button type="submit" variant="contained" disabled={loading}>{loading ? 'Enviando...' : 'Cadastrar'}</Button>
             </Box>

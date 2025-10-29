@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Box, Checkbox, Container, FormControlLabel, Paper, Stack, TextField, Typography } from '@mui/material'
-import { scanPassPresenceKiosk, type ScanKioskResponse } from '../api/passes'
+import { Alert, Box, Container, Paper, Stack, TextField, Typography, Divider, Button, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
+import { scanPassPresenceKiosk, type ScanKioskResponse, fetchActivePassCycle } from '../api/passes'
+import { reserveTickets } from '../api/tickets'
 
 type Entry = {
   ts: string
@@ -15,10 +16,26 @@ const KioskPage = () => {
   const [entries, setEntries] = useState<Entry[]>([])
   const [error, setError] = useState<string | null>(null)
   const [banner, setBanner] = useState<{ ok: boolean; userName?: string; ticket?: number; message: string } | null>(null)
-  const [printOnSuccess, setPrintOnSuccess] = useState<boolean>(false)
+  const [lastTicket, setLastTicket] = useState<{ ticket: number; userName: string; showInterview: boolean } | null>(null)
+  // Avulsas
+  const [passType, setPassType] = useState<string>('P1')
+  const [count, setCount] = useState<number>(1)
+  const [printing, setPrinting] = useState(false)
+  const [reserved, setReserved] = useState<{ ticket_number: number }[] | null>(null)
+  // Sempre imprimir ticket ao registrar e auto-enviar quando o leitor não mandar Enter
 
   useEffect(() => {
-    inputRef.current?.focus()
+    const focusInput = () => inputRef.current?.focus()
+    focusInput()
+    // Manter o foco no campo de entrada sempre que a página ganhar foco/click
+    window.addEventListener('focus', focusInput)
+    document.addEventListener('click', focusInput)
+    document.addEventListener('visibilitychange', focusInput)
+    return () => {
+      window.removeEventListener('focus', focusInput)
+      document.removeEventListener('click', focusInput)
+      document.removeEventListener('visibilitychange', focusInput)
+    }
   }, [])
 
   const pushEntry = (ok: boolean, msg: string) => {
@@ -60,10 +77,16 @@ const KioskPage = () => {
       const res: ScanKioskResponse = await scanPassPresenceKiosk({ token: token.trim() })
       pushEntry(true, `#${res.ticket_number} • ${res.user_name} • sessão ${res.session.sequence_index}`)
       setBanner({ ok: true, userName: res.user_name, ticket: res.ticket_number, message: `Sessão ${res.session.sequence_index}` })
+      // Verificar se o ciclo ativo requer entrevista
+      let showInterview = false
+      try {
+        const cycle = await fetchActivePassCycle(res.user_id)
+        showInterview = Boolean(cycle?.requires_interview)
+      } catch {}
+      setLastTicket({ ticket: res.ticket_number, userName: res.user_name, showInterview })
       playTone(true)
-      if (printOnSuccess) {
-        setTimeout(() => window.print(), 100)
-      }
+      // Sempre imprimir o ticket
+      setTimeout(() => window.print(), 200)
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       const message = (e as Error)?.message || 'Erro'
@@ -87,10 +110,86 @@ const KioskPage = () => {
     }
   }
 
+  // Auto-submit quando o leitor não envia Enter: dispara após brevíssima inatividade
+  // Evita acionar durante digitação humana exigindo um tamanho mínimo de buffer
+  useEffect(() => {
+    if (submitting) return
+    const trimmed = buffer.trim()
+    if (!trimmed) return
+    if (trimmed.length < 6) return // scanners normalmente geram tokens mais longos
+    const t = setTimeout(() => {
+      submitToken(trimmed)
+    }, 180)
+    return () => clearTimeout(t)
+  }, [buffer, submitting])
+
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
+      {/* CSS de impressão: exibe apenas o ticket */}
+      <style>
+        {`@media print {
+          @page { size: 80mm auto; margin: 5mm; }
+          body * { visibility: hidden; }
+          #print-ticket, #print-ticket * { visibility: visible; }
+          #print-ticket { position: fixed; inset: 0; margin: 0 auto; width: 72mm; padding: 0; text-align: center; }
+          #print-ticket .title { font-size: 24pt; font-weight: 800; margin: 4mm 0 2mm; }
+          #print-ticket .name { font-size: 14pt; margin: 1mm 0; }
+          #print-ticket .date { font-size: 11pt; margin: 2mm 0 3mm; }
+          #print-ticket .note { font-size: 12pt; margin: 2mm 0; }
+          #print-ticket hr { border: none; border-top: 1px dashed #666; margin: 2mm 8mm; }
+        }`}
+      </style>
       <Paper sx={{ p: 3 }}>
         <Stack spacing={2}>
+          {/* Card de senhas avulsas */}
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>Imprimir senhas avulsas</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+              <FormControl sx={{ minWidth: 140 }}>
+                <InputLabel>Tipo de passe</InputLabel>
+                <Select label="Tipo de passe" value={passType} onChange={(e) => setPassType(String(e.target.value))}>
+                  {['P1','P2','P3A','P3B','CH','P4A','P4B'].map(t => (
+                    <MenuItem key={t} value={t}>{t}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                type="number"
+                label="Quantidade"
+                inputProps={{ min: 1, max: 20 }}
+                value={count}
+                onChange={(e) => setCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+              />
+              <Button
+                variant="contained"
+                disableElevation
+                disabled={printing}
+                onClick={async () => {
+                  try {
+                    setPrinting(true)
+                    const items = await reserveTickets({ count, pass_type: passType })
+                    setReserved(items)
+                    setTimeout(() => window.print(), 0)
+                  } finally {
+                    setPrinting(false)
+                  }
+                }}
+              >
+                {printing ? 'Gerando…' : 'Imprimir'}
+              </Button>
+            </Stack>
+            {reserved && reserved.length > 0 && (
+              <Box mt={2} sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 2 }}>
+                {reserved.map(r => (
+                  <Box key={r.ticket_number} sx={{ border: '1px dashed', p: 2, textAlign: 'center' }}>
+                    <Typography variant="overline" display="block">Senha</Typography>
+                    <Typography variant="h4" fontWeight={700}>{r.ticket_number}</Typography>
+                    <Typography variant="body2" color="text.secondary">{passType}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </Paper>
           <Typography variant="h5" component="h1">Leitor de presenças</Typography>
           {banner && (
             <Alert severity={banner.ok ? 'success' : 'error'} sx={{ '& .MuiAlert-message': { width: '100%' } }}>
@@ -105,10 +204,7 @@ const KioskPage = () => {
             </Alert>
           )}
           <Typography variant="body2" color="text.secondary">Aponte o leitor para o QR e aguarde a confirmação.</Typography>
-          <FormControlLabel
-            control={<Checkbox checked={printOnSuccess} onChange={(e) => setPrintOnSuccess(e.target.checked)} />}
-            label="Imprimir ticket automaticamente ao registrar"
-          />
+          {/* Impressão automática e auto-envio sempre ativos */}
           <Box>
             <TextField
               inputRef={inputRef}
@@ -122,6 +218,20 @@ const KioskPage = () => {
             />
           </Box>
           {error && <Alert severity="error">{error}</Alert>}
+          {/* Conteúdo do ticket para impressão */}
+          <Box id="print-ticket" sx={{ display: lastTicket ? 'block' : 'none', bgcolor: 'white', color: 'black', p: 2, textAlign: 'center' }}>
+            {lastTicket && (
+              <Stack spacing={1} alignItems="center">
+                <Typography className="title">Passe {String(lastTicket.ticket).padStart(3, '0')}</Typography>
+                <Divider flexItem />
+                <Typography className="name">{lastTicket.userName}</Typography>
+                <Typography className="date" color="text.secondary">{new Date().toLocaleDateString()}</Typography>
+                {lastTicket.showInterview && (
+                  <Typography className="note">Aguarde a entrevista!</Typography>
+                )}
+              </Stack>
+            )}
+          </Box>
           <Box>
             <Typography variant="h6">Últimas leituras</Typography>
             <Stack spacing={1} sx={{ maxHeight: 280, overflowY: 'auto' }}>

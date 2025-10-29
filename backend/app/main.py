@@ -1,5 +1,6 @@
 import os
 from datetime import date
+from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.responses import Response
@@ -7,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from . import crud, models, passes, schemas
+from pydantic import BaseModel
 from .database import Base, engine, get_db
 try:
     from .routers import auth as auth_router
@@ -47,10 +49,17 @@ PROTECT_EXAM_ROUTES = os.getenv("PROTECT_EXAM_ROUTES", "0") == "1"
 PROTECT_PUBLIC_SCAN = os.getenv("PROTECT_PUBLIC_SCAN", "1") == "1"
 # Public registration can optionally require approval (user starts as Desativado)
 REQUIRE_REGISTRATION_APPROVAL = os.getenv("REQUIRE_REGISTRATION_APPROVAL", "0") == "1"
+# Optionally enforce auth/roles on /users* admin routes
+PROTECT_USER_ADMIN_ROUTES = os.getenv("PROTECT_USER_ADMIN_ROUTES", "0") == "1"
+CONFIRM_EMAIL_ON_REGISTER = os.getenv("CONFIRM_EMAIL_ON_REGISTER", "0") == "1"
 
 
 @app.post("/users", response_model=schemas.User, status_code=status.HTTP_201_CREATED)
-def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(
+    user_in: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["admin"])) if PROTECT_USER_ADMIN_ROUTES else None,
+):
     if user_in.email:
         existing_user = crud.get_user_by_email(db, user_in.email)
         if existing_user:
@@ -70,6 +79,7 @@ def read_users(
     status: schemas.UserStatus | None = None,
     role: schemas.UserRole | None = None,
     db: Session = Depends(get_db),
+    _=Depends(require_roles(["admin","recepcao","entrevista","exame"])) if PROTECT_USER_ADMIN_ROUTES else None,
 ):
     users = crud.get_users(
         db,
@@ -83,7 +93,7 @@ def read_users(
 
 
 @app.get("/users/{user_id}", response_model=schemas.User)
-def read_user(user_id: int, db: Session = Depends(get_db)):
+def read_user(user_id: int, db: Session = Depends(get_db), _=Depends(require_roles(["admin","recepcao","entrevista","exame"])) if PROTECT_USER_ADMIN_ROUTES else None):
     user = crud.get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
@@ -91,7 +101,12 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/users/{user_id}", response_model=schemas.User)
-def update_user(user_id: int, user_in: schemas.UserUpdate, db: Session = Depends(get_db)):
+def update_user(
+    user_id: int,
+    user_in: schemas.UserUpdate,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["admin"])) if PROTECT_USER_ADMIN_ROUTES else None,
+):
     db_user = crud.get_user(db, user_id)
     if not db_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
@@ -109,7 +124,7 @@ def update_user(user_id: int, user_in: schemas.UserUpdate, db: Session = Depends
 
 
 @app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user(user_id: int, db: Session = Depends(get_db), _=Depends(require_roles(["admin"])) if PROTECT_USER_ADMIN_ROUTES else None):
     db_user = crud.get_user(db, user_id)
     if not db_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
@@ -186,7 +201,7 @@ def upsert_exam_record(
 
 
 @app.get("/users/{user_id}/qr", response_model=schemas.UserQRCode)
-def get_user_qr(user_id: int, db: Session = Depends(get_db)):
+def get_user_qr(user_id: int, db: Session = Depends(get_db), _=Depends(require_roles(["admin"])) if PROTECT_USER_ADMIN_ROUTES else None):
     user = crud.get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
@@ -201,12 +216,24 @@ def get_user_qr(user_id: int, db: Session = Depends(get_db)):
 )
 def public_register(payload: schemas.PublicRegisterRequest, db: Session = Depends(get_db)):
     user_in = schemas.UserCreate(**payload.model_dump())
+    # Email confirmation or admin approval enforce initial status as Desativado
     desired_status = (
-        schemas.UserStatus.DESATIVADO if REQUIRE_REGISTRATION_APPROVAL else schemas.UserStatus.ATIVO
+        schemas.UserStatus.DESATIVADO
+        if (REQUIRE_REGISTRATION_APPROVAL or CONFIRM_EMAIL_ON_REGISTER)
+        else schemas.UserStatus.ATIVO
     )
     user_in.role = schemas.UserRole.USER
     user_in.status = desired_status
     user = crud.create_user(db, user_in)
+    # send confirmation e-mail if requested and email present
+    if CONFIRM_EMAIL_ON_REGISTER and user.email:
+        try:
+            from .routers.auth import _send_confirm_email  # reuse helper
+            from .auth_tokens import create_confirm_token
+            token = create_confirm_token(str(user.id))
+            _send_confirm_email(user.email, token)
+        except Exception:
+            pass
     return schemas.PublicRegisterResponse(
         id=user.id, status=schemas.UserStatus(user.status), role=schemas.UserRole(user.role)
     )
@@ -218,6 +245,56 @@ def me(payload = Depends(get_current_user_token), db: Session = Depends(get_db))
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     return user
+
+
+class MeUpdate(BaseModel):
+    full_name: str | None = None
+    social_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    cep: str | None = None
+    street: str | None = None
+    number: str | None = None
+    complement: str | None = None
+    neighborhood: str | None = None
+    city: str | None = None
+    state: str | None = None
+    social_network: str | None = None
+
+
+@app.put("/me", response_model=schemas.User)
+def me_update(
+    me_in: MeUpdate,
+    payload = Depends(get_current_user_token),
+    db: Session = Depends(get_db),
+):
+    user_id = int(getattr(payload, 'sub', 0))
+    db_user = crud.get_user(db, user_id)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    update = schemas.UserUpdate()
+    # Only copy allowed fields
+    for field in [
+        "full_name",
+        "social_name",
+        "phone",
+        "email",
+        "cep",
+        "street",
+        "number",
+        "complement",
+        "neighborhood",
+        "city",
+        "state",
+        "social_network",
+    ]:
+        value = getattr(me_in, field)
+        if value is not None:
+            setattr(update, field, value)
+
+    updated = crud.update_user(db, db_user, update)
+    return updated
 
 
 @app.get("/me/qr-token")
@@ -260,7 +337,11 @@ def get_user_qr_token(
 
 
 @app.get("/users/{user_id}/pass-cycles", response_model=list[schemas.PassCycle])
-def list_pass_cycles(user_id: int, db: Session = Depends(get_db)):
+def list_pass_cycles(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["admin","recepcao","entrevista","exame"])) if PROTECT_USER_ADMIN_ROUTES else None,
+):
     user = crud.get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
@@ -269,7 +350,11 @@ def list_pass_cycles(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/users/{user_id}/pass-cycles/active", response_model=schemas.PassCycle)
-def get_active_pass_cycle(user_id: int, db: Session = Depends(get_db)):
+def get_active_pass_cycle(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["admin","recepcao","entrevista","exame"])) if PROTECT_USER_ADMIN_ROUTES else None,
+):
     user = crud.get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
@@ -291,6 +376,7 @@ def register_pass_presence(
     user_id: int,
     payload: schemas.PassPresenceRequest,
     db: Session = Depends(get_db),
+    _=Depends(require_roles(["admin"])) if PROTECT_USER_ADMIN_ROUTES else None,
 ):
     user = crud.get_user(db, user_id)
     if not user:
@@ -693,6 +779,7 @@ def register_pass_absence(
     user_id: int,
     payload: schemas.PassAbsenceRequest,
     db: Session = Depends(get_db),
+    _=Depends(require_roles(["admin"])) if PROTECT_USER_ADMIN_ROUTES else None,
 ):
     user = crud.get_user(db, user_id)
     if not user:
@@ -706,3 +793,44 @@ def register_pass_absence(
         notes=notes,
     )
     return session
+
+
+# Reserve manual tickets (avulsos) following today's sequence; logs in ScanLog
+class TicketReserveRequest(BaseModel):
+    count: int = 1
+    # Use Optional with forward-ref to avoid eval issues inside class body
+    date: Optional["date"] = None
+    pass_type: str | None = None  # label only
+
+
+class TicketReserveItem(BaseModel):
+    ticket_number: int
+    scanned_for: date
+    pass_type: str | None = None
+
+
+@app.post("/tickets/reserve", response_model=list[TicketReserveItem])
+def reserve_tickets(
+    payload: TicketReserveRequest,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["recepcao","admin"]))
+):
+    day = payload.date or date.today()
+    if payload.count < 1 or payload.count > 100:
+        raise HTTPException(status_code=400, detail="count deve estar entre 1 e 100")
+    results: list[TicketReserveItem] = []
+    for _ in range(payload.count):
+        n = _next_ticket_number(db, day)
+        _log_scan(
+            db,
+            raw=None,
+            token_type="manual",
+            scanned_for=day,
+            ok=True,
+            error=None,
+            user_id=None,
+            session_id=None,
+            ticket_number=n,
+        )
+        results.append(TicketReserveItem(ticket_number=n, scanned_for=day, pass_type=payload.pass_type))
+    return results

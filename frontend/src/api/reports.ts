@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { http } from './http'
 
 export interface ScanLog {
   id: number;
@@ -19,7 +19,7 @@ export const fetchScanLogs = async (
 ): Promise<ScanLog[]> => {
   const params: Record<string, string> = {}
   if (date) params.date_ref = date
-  const res = await apiClient.get<ScanLog[]>(`/reports/scan-logs`, { params })
+  const res = await http.get<ScanLog[]>(`/reports/scan-logs`, { params })
   return res.data
 }
 
@@ -33,7 +33,7 @@ export interface ScanLogsSummary {
 export const fetchScanLogsSummary = async (
   date: string,
 ): Promise<ScanLogsSummary> => {
-  const res = await apiClient.get<ScanLogsSummary>(
+  const res = await http.get<ScanLogsSummary>(
     `/reports/scan-logs/summary`,
     { params: { date_ref: date } },
   )

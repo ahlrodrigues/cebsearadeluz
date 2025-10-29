@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { http } from "./http";
 
 export type PassSessionStatus = "Presente" | "Ausente";
 export type PassCycleStatus = "Ativo" | "Concluído" | "Interrompido";
@@ -54,7 +54,7 @@ export interface ScanKioskResponse {
 }
 
 export const fetchPassCycles = async (userId: number): Promise<PassCycle[]> => {
-  const response = await apiClient.get<PassCycle[]>(
+  const response = await http.get<PassCycle[]>(
     `/users/${userId}/pass-cycles`,
   );
   return response.data;
@@ -63,7 +63,7 @@ export const fetchPassCycles = async (userId: number): Promise<PassCycle[]> => {
 export const fetchActivePassCycle = async (
   userId: number,
 ): Promise<PassCycle> => {
-  const response = await apiClient.get<PassCycle>(
+  const response = await http.get<PassCycle>(
     `/users/${userId}/pass-cycles/active`,
   );
   return response.data;
@@ -73,7 +73,7 @@ export const registerPassPresence = async (
   userId: number,
   payload: PassOccurrencePayload,
 ): Promise<PassSession> => {
-  const response = await apiClient.post<PassSession>(
+  const response = await http.post<PassSession>(
     `/users/${userId}/passes/presence`,
     payload,
   );
@@ -84,7 +84,7 @@ export const registerPassAbsence = async (
   userId: number,
   payload: PassOccurrencePayload,
 ): Promise<PassSession> => {
-  const response = await apiClient.post<PassSession>(
+  const response = await http.post<PassSession>(
     `/users/${userId}/passes/absence`,
     payload,
   );
@@ -94,14 +94,14 @@ export const registerPassAbsence = async (
 export const scanPassPresence = async (
   payload: PassScanPayload,
 ): Promise<PassSession> => {
-  const response = await apiClient.post<PassSession>(`/passes/scan`, payload);
+  const response = await http.post<PassSession>(`/passes/scan`, payload);
   return response.data;
 };
 
 export const scanPassPresenceKiosk = async (
   payload: PassScanPayload,
 ): Promise<ScanKioskResponse> => {
-  const response = await apiClient.post<ScanKioskResponse>(
+  const response = await http.post<ScanKioskResponse>(
     `/passes/scan-kiosk`,
     payload,
   );

@@ -1,7 +1,14 @@
 import axios from "axios";
 import { refresh } from "./auth";
 
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? "";
+const envBase = import.meta.env.VITE_API_BASE_URL ?? "";
+const isLocalDevHost =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "::1");
+// Em dev no localhost, use proxy do Vite (baseURL vazio). Em outros hosts (LAN/Celular), use VITE_API_BASE_URL
+const baseURL = import.meta.env.DEV && isLocalDevHost ? "" : envBase;
 export const http = axios.create({ baseURL });
 
 let accessToken: string | null = null;

@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { http } from "./http";
 import type { PassType } from "./passes";
 
 export type UserStatus = "Ativo" | "Desativado";
@@ -82,10 +82,12 @@ export interface UserFilters {
   limit?: number;
 }
 
-export type UpdateUserPayload = Partial<Omit<CreateUserPayload, "password">> & {
-  password?: string;
-  assistance_day?: AssistanceDay | null;
-};
+// Ensure assistance_day can be explicitly cleared with null by removing it from the Partial base
+export type UpdateUserPayload =
+  Partial<Omit<CreateUserPayload, "password" | "assistance_day">> & {
+    password?: string;
+    assistance_day?: AssistanceDay | null;
+  };
 
 const cleanPayload = (payload: CreateUserPayload): CreateUserPayload => {
   const normalize = (value?: string) => {
@@ -137,7 +139,7 @@ const cleanPayload = (payload: CreateUserPayload): CreateUserPayload => {
 export const createUser = async (
   payload: CreateUserPayload,
 ): Promise<UserResponse> => {
-  const response = await apiClient.post<UserResponse>(
+  const response = await http.post<UserResponse>(
     "/users",
     cleanPayload(payload),
   );
@@ -168,26 +170,26 @@ export const fetchUsers = async (
     params.limit = filters.limit;
   }
 
-  const response = await apiClient.get<UserResponse[]>("/users", { params });
+  const response = await http.get<UserResponse[]>("/users", { params });
   return response.data;
 };
 
 export const getUser = async (userId: number): Promise<UserResponse> => {
-  const response = await apiClient.get<UserResponse>(`/users/${userId}`);
+  const response = await http.get<UserResponse>(`/users/${userId}`);
   return response.data;
 };
 
 export const getUserQrData = async (
   userId: number,
 ): Promise<UserQrResponse> => {
-  const response = await apiClient.get<UserQrResponse>(`/users/${userId}/qr`);
+  const response = await http.get<UserQrResponse>(`/users/${userId}/qr`);
   return response.data;
 };
 
 export const getUserQrToken = async (
   userId: number,
 ): Promise<UserQrTokenResponse> => {
-  const response = await apiClient.get<UserQrTokenResponse>(
+  const response = await http.get<UserQrTokenResponse>(
     `/users/${userId}/qr-token`,
   );
   return response.data;
@@ -240,7 +242,8 @@ const cleanUpdatePayload = (payload: UpdateUserPayload): UpdateUserPayload => {
   assign("password", payload.password);
 
   if ("assistance_day" in payload) {
-    result.assistance_day = payload.assistance_day ?? null;
+    // Keep explicit null to clear the value; otherwise omit
+    result.assistance_day = (payload.assistance_day ?? null) as UpdateUserPayload['assistance_day'];
   }
 
   return result;
@@ -250,7 +253,7 @@ export const updateUser = async (
   userId: number,
   payload: UpdateUserPayload,
 ): Promise<UserResponse> => {
-  const response = await apiClient.put<UserResponse>(
+  const response = await http.put<UserResponse>(
     `/users/${userId}`,
     cleanUpdatePayload(payload),
   );
@@ -258,5 +261,5 @@ export const updateUser = async (
 };
 
 export const deleteUser = async (userId: number): Promise<void> => {
-  await apiClient.delete(`/users/${userId}`);
+  await http.delete(`/users/${userId}`);
 };

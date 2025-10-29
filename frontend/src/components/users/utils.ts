@@ -73,7 +73,8 @@ export const mapToUpdatePayload = (values: UserFormValues): UpdateUserPayload =>
   }
 
   if (values.assistance_day.trim().length === 0) {
-    payload.assistance_day = null
+    // Use undefined to signal clearing the field; API layer will convert to null
+    payload.assistance_day = undefined
   } else {
     payload.assistance_day = values.assistance_day as AssistanceDay
   }

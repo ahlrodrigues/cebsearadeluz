@@ -24,7 +24,8 @@ const ResetPassword = () => {
     try {
       await resetPassword(token, pwd)
       setOk('Senha redefinida com sucesso. Você já pode fazer login.')
-      setTimeout(() => navigate('/login', { replace: true }), 1000)
+      // Aguarda 2 minutos antes de enviar para a tela de login
+      setTimeout(() => navigate('/login', { replace: true }), 120000)
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       const message = (e as Error)?.message
@@ -55,4 +56,3 @@ const ResetPassword = () => {
 }
 
 export default ResetPassword
-

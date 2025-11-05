@@ -215,6 +215,22 @@ def get_user_qr(user_id: int, db: Session = Depends(get_db), _=Depends(require_r
     status_code=status.HTTP_201_CREATED,
 )
 def public_register(payload: schemas.PublicRegisterRequest, db: Session = Depends(get_db)):
+    # If confirmation is required, enforce e-mail presence to avoid dead-end accounts
+    if CONFIRM_EMAIL_ON_REGISTER and not payload.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="E-mail é obrigatório para confirmar o cadastro.",
+        )
+
+    # Prevent duplicate e-mails on public registration (friendly error)
+    if payload.email:
+        existing = crud.get_user_by_email(db, payload.email)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Já existe um usuário cadastrado com esse e-mail.",
+            )
+
     user_in = schemas.UserCreate(**payload.model_dump())
     # Email confirmation or admin approval enforce initial status as Desativado
     desired_status = (

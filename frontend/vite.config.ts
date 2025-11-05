@@ -33,6 +33,7 @@ export default defineConfig({
       '/users': 'http://127.0.0.1:8000',
       '/passes': 'http://127.0.0.1:8000',
       '/auth': 'http://127.0.0.1:8000',
+      '/public': 'http://127.0.0.1:8000',
       '/openapi.json': 'http://127.0.0.1:8000',
       '/docs': 'http://127.0.0.1:8000',
     },

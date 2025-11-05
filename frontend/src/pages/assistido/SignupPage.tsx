@@ -25,7 +25,8 @@ const SignupPage = () => {
           ? 'Cadastro recebido. Aguarde aprovação.'
           : 'Cadastro criado! Você já pode fazer login.'
       )
-      setTimeout(() => navigate('/login', { replace: true }), 1200)
+      // Após confirmar, redireciona para login em 2 minutos
+      setTimeout(() => navigate('/login', { replace: true }), 120000)
     } catch (err: unknown) {
       const ax = err as AxiosError<any>
       let msg: string | undefined

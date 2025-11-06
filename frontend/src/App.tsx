@@ -133,7 +133,16 @@ const App = () => {
             </PrivateRoute>
           }
         />
-        <Route path="/reports/scans" element={<ScanLogsPage />} />
+        <Route
+          path="/reports/scans"
+          element={
+            <PrivateRoute>
+              <RoleRoute roles={["admin"]}>
+                <ScanLogsPage />
+              </RoleRoute>
+            </PrivateRoute>
+          }
+        />
         <Route
           path="/reports/daily-status"
           element={

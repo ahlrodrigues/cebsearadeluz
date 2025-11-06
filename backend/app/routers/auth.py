@@ -96,20 +96,78 @@ def _send_reset_email(to_email: str, token: str) -> None:
     port = int(os.getenv("SMTP_PORT", "587"))
     user = os.getenv("SMTP_USER")
     password = os.getenv("SMTP_PASS")
-    from_addr = os.getenv("SMTP_FROM") or user
+    # Permite definir apenas o nome (SMTP_FROM_NAME) e/ou o cabeçalho completo em SMTP_FROM
+    from_config = os.getenv("SMTP_FROM") or user
+    from_name = os.getenv("SMTP_FROM_NAME")
+    if from_name and user:
+        from_addr = f"{from_name} <{user}>"
+    else:
+        from_addr = from_config
     starttls = os.getenv("SMTP_STARTTLS", "1") == "1"
 
     subject = "Redefinição de senha"
-    body = f"""
+
+    # Texto simples (fallback)
+    text_body = f"""
 Olá,
 
-Recebemos uma solicitação para redefinir sua senha.
+Recebemos uma solicitação para redefinir sua senha no CEB Seara da Luz.
 
 Para continuar, acesse o link:
 {reset_url}
 
 Se você não solicitou esta redefinição, ignore este e-mail.
 """.strip()
+
+    # HTML com mesmo layout do e-mail de confirmação
+    html_body = f"""
+<!doctype html>
+<html lang=\"pt-br\">
+  <head>
+    <meta charset=\"UTF-8\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
+    <title>{subject}</title>
+  </head>
+  <body style=\"margin:0;padding:0;background-color:#f5f7fa;font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; color:#1f2937;\">
+    <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f5f7fa;\">
+      <tr>
+        <td align=\"center\" style=\"padding:24px 12px;\">
+          <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);\">
+            <tr>
+              <td style=\"background-color:#1976d2;color:#ffffff;padding:16px 20px;font-size:18px;font-weight:600;\">
+                CEB Seara da Luz
+              </td>
+            </tr>
+            <tr>
+              <td style=\"padding:24px 20px;\">
+                <h1 style=\"margin:0 0 8px 0;font-size:20px;color:#111827;\">Redefinição de senha</h1>
+                <p style=\"margin:0 0 16px 0;line-height:1.5;\">Olá,</p>
+                <p style=\"margin:0 0 16px 0;line-height:1.6;\">Recebemos uma solicitação para redefinir sua senha no <strong>CEB Seara da Luz</strong>. Para continuar, clique no botão abaixo:</p>
+
+                <div style=\"text-align:center;margin:24px 0;\">
+                  <a href=\"{reset_url}\" target=\"_blank\" rel=\"noopener noreferrer\"
+                     style=\"display:inline-block;background-color:#1976d2;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;\">
+                    Redefinir senha
+                  </a>
+                </div>
+
+                <p style=\"margin:0 0 12px 0;line-height:1.6;\">Se o botão não funcionar, copie e cole este link no navegador:</p>
+                <p style=\"margin:0 0 16px 0;word-break:break-all;color:#1f2937;\"><a href=\"{reset_url}\" style=\"color:#1976d2;\">{reset_url}</a></p>
+                <p style=\"margin:0;line-height:1.6;color:#6b7280;\">Se você não solicitou esta redefinição, ignore este e-mail.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style=\"background-color:#f9fafb;color:#6b7280;padding:12px 20px;font-size:12px;text-align:center;\">
+                © {os.getenv('EMAIL_FOOTER_YEAR', str(__import__('datetime').datetime.now().year))} CEB Seara da Luz — Todos os direitos reservados
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+  </html>
+"""
 
     if not host or not from_addr:
         # Dev fallback: log to console for manual copy
@@ -121,7 +179,8 @@ Se você não solicitou esta redefinição, ignore este e-mail.
         msg["Subject"] = subject
         msg["From"] = from_addr
         msg["To"] = to_email
-        msg.set_content(body)
+        msg.set_content(text_body)
+        msg.add_alternative(html_body, subtype="html")
 
         with smtplib.SMTP(host, port, timeout=10) as s:
             if starttls:
@@ -148,17 +207,78 @@ def _send_confirm_email(to_email: str, token: str) -> None:
     port = int(os.getenv("SMTP_PORT", "587"))
     user = os.getenv("SMTP_USER")
     password = os.getenv("SMTP_PASS")
-    from_addr = os.getenv("SMTP_FROM") or user
+    # Permite definir apenas o nome (SMTP_FROM_NAME) e/ou o cabeçalho completo em SMTP_FROM
+    from_config = os.getenv("SMTP_FROM") or user
+    from_name = os.getenv("SMTP_FROM_NAME")
+    if from_name and user:
+        from_addr = f"{from_name} <{user}>"
+    else:
+        from_addr = from_config
     starttls = os.getenv("SMTP_STARTTLS", "1") == "1"
 
     subject = "Confirme seu cadastro"
-    body = f"""
+
+    # Corpo em texto simples (fallback)
+    text_body = f"""
 Olá,
 
-Obrigado por se cadastrar. Para ativar sua conta, confirme o e-mail neste link:
+Obrigado por se cadastrar no CEB Seara da Luz.
+
+Para ativar sua conta, confirme seu e-mail acessando o link abaixo:
 {confirm_url}
 
+Se você não solicitou este cadastro, ignore este e-mail.
 """.strip()
+
+    # Layout HTML com as cores do frontend (primary #1976d2, bg #f5f7fa)
+    html_body = f"""
+<!doctype html>
+<html lang=\"pt-br\">
+  <head>
+    <meta charset=\"UTF-8\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
+    <title>{subject}</title>
+  </head>
+  <body style=\"margin:0;padding:0;background-color:#f5f7fa;font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif; color:#1f2937;\">
+    <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background-color:#f5f7fa;\">
+      <tr>
+        <td align=\"center\" style=\"padding:24px 12px;\">
+          <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);\">
+            <tr>
+              <td style=\"background-color:#1976d2;color:#ffffff;padding:16px 20px;font-size:18px;font-weight:600;\">
+                CEB Seara da Luz
+              </td>
+            </tr>
+            <tr>
+              <td style=\"padding:24px 20px;\">
+                <h1 style=\"margin:0 0 8px 0;font-size:20px;color:#111827;\">Confirme seu cadastro</h1>
+                <p style=\"margin:0 0 16px 0;line-height:1.5;\">Olá,</p>
+                <p style=\"margin:0 0 16px 0;line-height:1.6;\">Obrigado por se cadastrar no <strong>CEB Seara da Luz</strong>. Para ativar sua conta, confirme seu e-mail clicando no botão abaixo.</p>
+
+                <div style=\"text-align:center;margin:24px 0;\">
+                  <a href=\"{confirm_url}\" target=\"_blank\" rel=\"noopener noreferrer\"
+                     style=\"display:inline-block;background-color:#1976d2;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;\">
+                    Confirmar e-mail
+                  </a>
+                </div>
+
+                <p style=\"margin:0 0 12px 0;line-height:1.6;\">Se o botão não funcionar, copie e cole este link no navegador:</p>
+                <p style=\"margin:0 0 16px 0;word-break:break-all;color:#1f2937;\"><a href=\"{confirm_url}\" style=\"color:#1976d2;\">{confirm_url}</a></p>
+                <p style=\"margin:0;line-height:1.6;color:#6b7280;\">Se você não solicitou este cadastro, pode ignorar este e-mail.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style=\"background-color:#f9fafb;color:#6b7280;padding:12px 20px;font-size:12px;text-align:center;\">
+                © {os.getenv('EMAIL_FOOTER_YEAR', str(__import__('datetime').datetime.now().year))} CEB Seara da Luz — Todos os direitos reservados
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+  </html>
+"""
 
     if not host or not from_addr:
         print(f"[confirm] To: {to_email} | Link: {confirm_url}")
@@ -169,7 +289,9 @@ Obrigado por se cadastrar. Para ativar sua conta, confirme o e-mail neste link:
         msg["Subject"] = subject
         msg["From"] = from_addr
         msg["To"] = to_email
-        msg.set_content(body)
+        # texto simples + alternativa HTML
+        msg.set_content(text_body)
+        msg.add_alternative(html_body, subtype="html")
 
         with smtplib.SMTP(host, port, timeout=10) as s:
             if starttls:

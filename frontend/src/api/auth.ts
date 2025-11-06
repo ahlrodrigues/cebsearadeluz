@@ -1,4 +1,5 @@
 import axios from "axios";
+import { http } from "./http";
 
 const envBase = import.meta.env.VITE_API_BASE_URL ?? "";
 const isLocalDevHost =
@@ -54,12 +55,14 @@ export async function resetPassword(token: string, newPassword: string): Promise
 
 // WebAuthn (Passkeys)
 export async function webauthnRegisterBegin(): Promise<{ publicKey: any; state: string }> {
-  const { data } = await authApi.post<{ publicKey: any; state: string }>("/webauthn/register/begin");
+  // precisa de Authorization; usar http
+  const { data } = await http.post<{ publicKey: any; state: string }>("/webauthn/register/begin");
   return data;
 }
 
 export async function webauthnRegisterFinish(body: any): Promise<{ ok: boolean }> {
-  const { data } = await authApi.post<{ ok: boolean }>("/webauthn/register/finish", body);
+  // precisa de Authorization; usar http
+  const { data } = await http.post<{ ok: boolean }>("/webauthn/register/finish", body);
   return data;
 }
 

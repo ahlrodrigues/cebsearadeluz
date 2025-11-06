@@ -169,23 +169,27 @@ const EditMyProfile = () => {
             <TextField label="UF" value={state} onChange={(e) => setState(e.target.value)} fullWidth inputProps={{ maxLength: 2 }} />
             <TextField label="Rede social" value={socialNetwork} onChange={(e) => setSocialNetwork(e.target.value)} fullWidth />
             <Alert severity="info">Para alterar a senha, utilize a opção "Esqueci minha senha" na tela de login. Alterações de perfil/status são realizadas pela administração.</Alert>
-            <Divider />
-            <Typography variant="h6">Login por biometria (beta)</Typography>
-            {passkeyMsg && <Alert severity="info">{passkeyMsg}</Alert>}
-            <Stack direction="row" spacing={1}>
-              <Button variant="outlined" disabled={!me} onClick={async () => {
-                try {
-                  setPasskeyMsg(null)
-                  const begin = await webauthnRegisterBegin()
-                  const opts = mapCreationOptions(begin.publicKey)
-                  const cred = (await navigator.credentials.create({ publicKey: opts })) as PublicKeyCredential
-                  await webauthnRegisterFinish({ ...attestationToJSON(cred), state: begin.state })
-                  setPasskeyMsg('Biometria habilitada neste dispositivo. Você poderá usar "Entrar com biometria" na tela de login.')
-                } catch (e: any) {
-                  setPasskeyMsg(String(e?.response?.data?.detail || e?.message || 'Falha ao registrar passkey'))
-                }
-              }}>Ativar login por biometria</Button>
-            </Stack>
+            {import.meta.env.VITE_WEB_AUTHN_ENABLED === '1' && 'credentials' in navigator && (
+              <>
+                <Divider />
+                <Typography variant="h6">Login por biometria (beta)</Typography>
+                {passkeyMsg && <Alert severity="info">{passkeyMsg}</Alert>}
+                <Stack direction="row" spacing={1}>
+                  <Button variant="outlined" disabled={!me} onClick={async () => {
+                    try {
+                      setPasskeyMsg(null)
+                      const begin = await webauthnRegisterBegin()
+                      const opts = mapCreationOptions(begin.publicKey)
+                      const cred = (await navigator.credentials.create({ publicKey: opts })) as PublicKeyCredential
+                      await webauthnRegisterFinish({ ...attestationToJSON(cred), state: begin.state })
+                      setPasskeyMsg('Biometria habilitada neste dispositivo. Você poderá usar "Entrar com biometria" na tela de login.')
+                    } catch (e: any) {
+                      setPasskeyMsg(String(e?.response?.data?.detail || e?.message || 'Falha ao registrar passkey'))
+                    }
+                  }}>Ativar login por biometria</Button>
+                </Stack>
+              </>
+            )}
             <Stack direction="row" justifyContent="flex-end">
               <Button type="submit" variant="contained" disabled={loading || !me}>{loading ? 'Salvando...' : 'Salvar'}</Button>
             </Stack>

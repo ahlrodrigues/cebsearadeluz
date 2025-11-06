@@ -87,6 +87,9 @@ def register_begin(
 
     # ids já registrados para excluir
     creds = db.query(WebAuthnCredential).filter(WebAuthnCredential.user_id == user.id).all()
+    # Política: não permitir múltiplas credenciais por usuário
+    if len(creds) >= 1:
+        raise HTTPException(status_code=400, detail="Já existe uma credencial de biometria cadastrada para este usuário.")
     exclude = [{"type": "public-key", "id": c.credential_id} for c in creds]
 
     pubkey = {
@@ -134,9 +137,17 @@ def register_finish(payload: FinishRegisterRequest, ctx = Depends(get_current_us
 
     # Dev: armazenar credential_id e stub de public_key
     cred_id = payload.id
+    # Política: um registro por usuário
+    existing_for_user = db.query(WebAuthnCredential).filter(WebAuthnCredential.user_id == uid).all()
+    if len(existing_for_user) >= 1:
+        # Se for a mesma credencial, trata como idempotente
+        if any(c.credential_id == payload.id for c in existing_for_user):
+            return {"ok": True}
+        raise HTTPException(status_code=400, detail="Usuário já possui uma credencial cadastrada.")
+    # Evitar duplicidade de credential_id entre usuários
     exists = db.query(WebAuthnCredential).filter(WebAuthnCredential.credential_id == cred_id).first()
-    if exists:
-        return {"ok": True}
+    if exists and exists.user_id != uid:
+        raise HTTPException(status_code=400, detail="Credencial já vinculada a outro usuário.")
     rec = WebAuthnCredential(
         user_id=uid,
         credential_id=cred_id,
@@ -220,4 +231,3 @@ def login_finish(payload: FinishLoginRequest, db: Session = Depends(get_db)):
         "refresh_token": create_refresh_token(str(user.id), role),
         "token_type": "bearer",
     }
-

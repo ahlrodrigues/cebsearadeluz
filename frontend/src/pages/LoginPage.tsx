@@ -84,9 +84,11 @@ const LoginPage = () => {
             <Box>
               <Button type="submit" variant="contained" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</Button>
             </Box>
-            <Box>
-              <Button variant="outlined" disabled={loading} onClick={loginWithPasskey}>Entrar com biometria (beta)</Button>
-            </Box>
+            {import.meta.env.VITE_WEB_AUTHN_ENABLED === '1' && 'credentials' in navigator && (
+              <Box>
+                <Button variant="outlined" disabled={loading} onClick={loginWithPasskey}>Entrar com biometria (beta)</Button>
+              </Box>
+            )}
             <Typography variant="body2">
               <Link component={RouterLink} to="/forgot-password">Esqueci minha senha</Link>
             </Typography>

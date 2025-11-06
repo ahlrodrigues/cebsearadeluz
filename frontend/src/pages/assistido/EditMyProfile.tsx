@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Container, Paper, Stack, TextField, Button, Alert, Typography, IconButton, InputAdornment, Tooltip, CircularProgress } from '@mui/material'
+import { Container, Paper, Stack, TextField, Button, Alert, Typography, IconButton, InputAdornment, Tooltip, CircularProgress, Divider } from '@mui/material'
 import { http } from '../../api/http'
 import { lookupCep } from '../../api/cep'
 import SearchIcon from '@mui/icons-material/Search'
+import { webauthnRegisterBegin, webauthnRegisterFinish } from '../../api/auth'
+import { attestationToJSON, mapCreationOptions } from '../../auth/webauthn'
 
 type Me = {
   id: number
@@ -31,6 +33,7 @@ const EditMyProfile = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
+  const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -166,6 +169,23 @@ const EditMyProfile = () => {
             <TextField label="UF" value={state} onChange={(e) => setState(e.target.value)} fullWidth inputProps={{ maxLength: 2 }} />
             <TextField label="Rede social" value={socialNetwork} onChange={(e) => setSocialNetwork(e.target.value)} fullWidth />
             <Alert severity="info">Para alterar a senha, utilize a opção "Esqueci minha senha" na tela de login. Alterações de perfil/status são realizadas pela administração.</Alert>
+            <Divider />
+            <Typography variant="h6">Login por biometria (beta)</Typography>
+            {passkeyMsg && <Alert severity="info">{passkeyMsg}</Alert>}
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" disabled={!me} onClick={async () => {
+                try {
+                  setPasskeyMsg(null)
+                  const begin = await webauthnRegisterBegin()
+                  const opts = mapCreationOptions(begin.publicKey)
+                  const cred = (await navigator.credentials.create({ publicKey: opts })) as PublicKeyCredential
+                  await webauthnRegisterFinish({ ...attestationToJSON(cred), state: begin.state })
+                  setPasskeyMsg('Biometria habilitada neste dispositivo. Você poderá usar "Entrar com biometria" na tela de login.')
+                } catch (e: any) {
+                  setPasskeyMsg(String(e?.response?.data?.detail || e?.message || 'Falha ao registrar passkey'))
+                }
+              }}>Ativar login por biometria</Button>
+            </Stack>
             <Stack direction="row" justifyContent="flex-end">
               <Button type="submit" variant="contained" disabled={loading || !me}>{loading ? 'Salvando...' : 'Salvar'}</Button>
             </Stack>

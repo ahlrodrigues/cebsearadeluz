@@ -51,3 +51,24 @@ export async function resetPassword(token: string, newPassword: string): Promise
   const { data } = await authApi.post<{ ok: boolean }>("/auth/reset-password", { token, new_password: newPassword });
   return data;
 }
+
+// WebAuthn (Passkeys)
+export async function webauthnRegisterBegin(): Promise<{ publicKey: any; state: string }> {
+  const { data } = await authApi.post<{ publicKey: any; state: string }>("/webauthn/register/begin");
+  return data;
+}
+
+export async function webauthnRegisterFinish(body: any): Promise<{ ok: boolean }> {
+  const { data } = await authApi.post<{ ok: boolean }>("/webauthn/register/finish", body);
+  return data;
+}
+
+export async function webauthnLoginBegin(email: string): Promise<{ publicKey: any; state: string }> {
+  const { data } = await authApi.post<{ publicKey: any; state: string }>("/webauthn/login/begin", { email });
+  return data;
+}
+
+export async function webauthnLoginFinish(body: any): Promise<{ access_token: string; refresh_token: string; token_type: 'bearer' }> {
+  const { data } = await authApi.post<{ access_token: string; refresh_token: string; token_type: 'bearer' }>("/webauthn/login/finish", body);
+  return data;
+}

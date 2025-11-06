@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react'
 import { Box, Button, Container, Paper, Stack, TextField, Typography, Alert, Link } from '@mui/material'
 import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
-import { AUTH_API_BASE } from '../api/auth'
+import { AUTH_API_BASE, webauthnLoginBegin, webauthnLoginFinish } from '../api/auth'
 import type { AxiosError } from 'axios'
+import { mapRequestOptions, assertionToJSON } from '../auth/webauthn'
+import { setTokens } from '../api/http'
 
 const LoginPage = () => {
   const { signin, session } = useAuth()
@@ -40,6 +42,30 @@ const LoginPage = () => {
     }
   }
 
+  async function loginWithPasskey() {
+    setLoading(true)
+    setError(null)
+    try {
+      if (!email) throw new Error('Informe seu e-mail para localizar sua credencial de biometria')
+      const begin = await webauthnLoginBegin(email)
+      const options = mapRequestOptions(begin.publicKey)
+      const cred = (await navigator.credentials.get({ publicKey: options })) as PublicKeyCredential
+      const res = await webauthnLoginFinish({ ...assertionToJSON(cred), state: begin.state })
+      setTokens(res.access_token, res.refresh_token)
+      // Decodifica role para redirecionar
+      const payload = JSON.parse(atob(res.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/').padEnd(res.access_token.split('.')[1].length + ((4 - (res.access_token.split('.')[1].length % 4)) % 4), '=')))
+      const role = payload.role
+      if (role === 'user') navigate(`/app/assistido/qr`, { replace: true })
+      else navigate('/users', { replace: true })
+    } catch (err: unknown) {
+      const ax = err as AxiosError<any>
+      const detail = ax?.response?.data?.detail
+      setError(String(detail || (err as Error)?.message || 'Falha no login por biometria'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Container maxWidth="sm" sx={{ py: 8 }}>
       <Paper sx={{ p: 3 }}>
@@ -57,6 +83,9 @@ const LoginPage = () => {
             <TextField label="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth required />
             <Box>
               <Button type="submit" variant="contained" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</Button>
+            </Box>
+            <Box>
+              <Button variant="outlined" disabled={loading} onClick={loginWithPasskey}>Entrar com biometria (beta)</Button>
             </Box>
             <Typography variant="body2">
               <Link component={RouterLink} to="/forgot-password">Esqueci minha senha</Link>

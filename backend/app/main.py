@@ -14,6 +14,10 @@ try:
     from .routers import auth as auth_router
 except Exception:  # pragma: no cover - allow tests without auth deps
     auth_router = None
+try:
+    from .routers import webauthn as webauthn_router
+except Exception:
+    webauthn_router = None
 from .deps_auth import get_current_user_token, require_roles
 from .policies import enforce_auto_deactivation
 
@@ -32,6 +36,8 @@ app.add_middleware(
 # Routers
 if auth_router is not None:
     app.include_router(auth_router.router)
+if webauthn_router is not None and os.getenv("WEB_AUTHN_ENABLED", "0") == "1":
+    app.include_router(webauthn_router.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

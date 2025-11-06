@@ -165,3 +165,19 @@ class ScanLog(Base):
     error = Column(String(255), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     session_id = Column(Integer, ForeignKey("pass_sessions.id"), nullable=True)
+
+
+class WebAuthnCredential(Base):
+    __tablename__ = "webauthn_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    credential_id = Column(String(255), nullable=False, unique=True, index=True)  # base64url id
+    public_key = Column(Text, nullable=True)  # stored key material (dev placeholder when skip verify)
+    sign_count = Column(Integer, nullable=False, default=0)
+    transports = Column(String(255), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

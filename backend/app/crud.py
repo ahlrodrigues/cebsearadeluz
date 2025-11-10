@@ -158,6 +158,7 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
         role=user_in.role.value,
         hashed_password=hashed_password,
         is_active=user_in.status == schemas.UserStatus.ATIVO,
+        digital_login_enabled=bool(getattr(user_in, 'digital_login_enabled', True)),
         assistance_day=user_in.assistance_day.value if user_in.assistance_day else None,
     )
     db.add(db_user)
@@ -199,6 +200,8 @@ def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) 
         db_user.is_active = user_in.status == schemas.UserStatus.ATIVO
     if user_in.role is not None:
         db_user.role = user_in.role.value
+    if 'digital_login_enabled' in user_in.model_fields_set and user_in.digital_login_enabled is not None:
+        db_user.digital_login_enabled = bool(user_in.digital_login_enabled)
     if 'assistance_day' in user_in.model_fields_set:
         db_user.assistance_day = (
             user_in.assistance_day.value if user_in.assistance_day else None

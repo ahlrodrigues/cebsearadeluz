@@ -80,6 +80,8 @@ def register_begin(
     user = db.query(User).get(uid)
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    if not getattr(user, "digital_login_enabled", True):
+        raise HTTPException(status_code=403, detail="Login digital desativado para este usuário")
 
     rp_id, rp_name = _rp_info()
     challenge = secrets.token_bytes(32)
@@ -129,6 +131,9 @@ def register_finish(payload: FinishRegisterRequest, ctx = Depends(get_current_us
     st = _verify_state(payload.state)
     if st.get("k") != "reg" or int(st.get("uid", 0)) != uid:
         raise HTTPException(status_code=400, detail="Estado inválido")
+    user = db.query(User).get(uid)
+    if not user or not getattr(user, "digital_login_enabled", True):
+        raise HTTPException(status_code=403, detail="Login digital desativado para este usuário")
 
     dev_skip = os.getenv("WEB_AUTHN_DEV_SKIP_VERIFY", "0") == "1"
     if not dev_skip:
@@ -178,6 +183,8 @@ def login_begin(payload: BeginLoginRequest, db: Session = Depends(get_db)):
     if not user:
         # Para não vazar existência de e-mail, responder genericamente
         raise HTTPException(status_code=404, detail="Credencial não encontrada")
+    if not getattr(user, "digital_login_enabled", True):
+        raise HTTPException(status_code=403, detail="Login digital desativado para este usuário")
     creds = db.query(WebAuthnCredential).filter(WebAuthnCredential.user_id == user.id).all()
     if not creds:
         raise HTTPException(status_code=404, detail="Credencial não encontrada")
@@ -225,6 +232,8 @@ def login_finish(payload: FinishLoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).get(uid)
     if not user or user.is_active is False:
         raise HTTPException(status_code=403, detail="Usuário inativo")
+    if not getattr(user, "digital_login_enabled", True):
+        raise HTTPException(status_code=403, detail="Login digital desativado para este usuário")
     role = user.role or "user"
     return {
         "access_token": create_access_token(str(user.id), role),

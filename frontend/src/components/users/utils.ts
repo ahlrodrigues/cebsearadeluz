@@ -25,6 +25,7 @@ export const normalizeInitialValues = (
   role: (values?.role ?? 'user') as UserRole,
   confirm_password: values?.confirm_password ?? values?.password ?? '',
   assistance_day: values?.assistance_day ?? '',
+  digital_login_enabled: values?.digital_login_enabled ?? true,
 })
 
 export const mapToCreatePayload = (values: UserFormValues): CreateUserPayload => ({
@@ -44,6 +45,7 @@ export const mapToCreatePayload = (values: UserFormValues): CreateUserPayload =>
   status: values.status,
   role: values.role,
   assistance_day: optional(values.assistance_day) as AssistanceDay | undefined,
+  digital_login_enabled: values.digital_login_enabled,
   password: values.password,
 })
 
@@ -66,6 +68,7 @@ export const mapToUpdatePayload = (values: UserFormValues): UpdateUserPayload =>
     social_network: optional(values.social_network),
     status: values.status,
     role: values.role,
+    digital_login_enabled: values.digital_login_enabled,
   }
 
   if (values.password.trim().length > 0) {
@@ -99,6 +102,7 @@ export const mapUserResponseToFormValues = (user: UserResponse): Partial<UserFor
   status: user.status,
   role: user.role,
   assistance_day: user.assistance_day ?? '',
+  digital_login_enabled: user.digital_login_enabled ?? true,
   password: '',
   confirm_password: '',
 })

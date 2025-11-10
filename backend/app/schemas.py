@@ -48,6 +48,8 @@ class UserBase(BaseModel):
     status: UserStatus = Field(default=UserStatus.ATIVO)
     role: UserRole = Field(default=UserRole.USER)
     assistance_day: Optional[AssistanceDay] = Field(default=None)
+    # Controle por usuário do login digital (WebAuthn)
+    digital_login_enabled: bool = Field(default=True)
 
 
 class UserCreate(UserBase):
@@ -85,6 +87,7 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = None
     password: Optional[str] = Field(None, min_length=8, max_length=128)
     assistance_day: Optional[AssistanceDay] = None
+    digital_login_enabled: Optional[bool] = None
 
 
 class UserInDBBase(UserBase):

@@ -17,6 +17,7 @@ export interface UserFormValues {
   status: UserStatus
   role: UserRole
   assistance_day: string
+  digital_login_enabled: boolean
   password: string
   confirm_password: string
 }

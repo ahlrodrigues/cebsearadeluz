@@ -38,6 +38,8 @@ class User(Base):
     role = Column(String(20), nullable=False, default="user", index=True)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    # Permissão para login digital (WebAuthn/biometria) por usuário
+    digital_login_enabled = Column(Boolean, default=True, nullable=False)
     assistance_day = Column(String(15), nullable=True)
     created_at = Column(
         DateTime(timezone=True),

@@ -30,6 +30,7 @@ export interface CreateUserPayload {
   status: UserStatus;
   role: UserRole;
   assistance_day?: AssistanceDay;
+  digital_login_enabled?: boolean;
 }
 
 export interface UserResponse {
@@ -50,6 +51,7 @@ export interface UserResponse {
   status: UserStatus;
   role: UserRole;
   assistance_day?: AssistanceDay | null;
+  digital_login_enabled: boolean;
   created_at: string;
   updated_at?: string | null;
   has_active_cycle: boolean;
@@ -87,6 +89,7 @@ export type UpdateUserPayload =
   Partial<Omit<CreateUserPayload, "password" | "assistance_day">> & {
     password?: string;
     assistance_day?: AssistanceDay | null;
+    digital_login_enabled?: boolean;
   };
 
 const cleanPayload = (payload: CreateUserPayload): CreateUserPayload => {
@@ -131,6 +134,10 @@ const cleanPayload = (payload: CreateUserPayload): CreateUserPayload => {
 
   if (payload.assistance_day) {
     result.assistance_day = payload.assistance_day;
+  }
+
+  if (typeof payload.digital_login_enabled === 'boolean') {
+    result.digital_login_enabled = payload.digital_login_enabled;
   }
 
   return result;
@@ -240,6 +247,9 @@ const cleanUpdatePayload = (payload: UpdateUserPayload): UpdateUserPayload => {
   assign("status", payload.status);
   assign("role", payload.role);
   assign("password", payload.password);
+  if (typeof payload.digital_login_enabled === 'boolean') {
+    result.digital_login_enabled = payload.digital_login_enabled;
+  }
 
   if ("assistance_day" in payload) {
     // Keep explicit null to clear the value; otherwise omit

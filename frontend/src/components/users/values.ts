@@ -17,6 +17,7 @@ export const DEFAULT_VALUES: UserFormValues = {
   status: 'Ativo',
   role: 'user',
   assistance_day: '',
+  digital_login_enabled: true,
   password: '',
   confirm_password: '',
 }

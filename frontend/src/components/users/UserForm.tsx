@@ -5,10 +5,12 @@ import {
   Box,
   Button,
   CircularProgress,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   MenuItem,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -377,20 +379,34 @@ const UserForm = ({
               fullWidth
             />
 
-            <TextField
-              label="Dia de assistência"
-              select
-              value={values.assistance_day}
-              onChange={handleChange('assistance_day')}
-              fullWidth
-              helperText="Selecione o dia habitual em que o assistido recebe atendimento."
-            >
-              {assistanceDayOptions.map((option) => (
-                <MenuItem key={option || 'none'} value={option}>
-                  {option || 'Selecionar'}
-                </MenuItem>
-              ))}
-            </TextField>
+          <TextField
+            label="Dia de assistência"
+            select
+            value={values.assistance_day}
+            onChange={handleChange('assistance_day')}
+            fullWidth
+            helperText="Selecione o dia habitual em que o assistido recebe atendimento."
+          >
+            {assistanceDayOptions.map((option) => (
+              <MenuItem key={option || 'none'} value={option}>
+                {option || 'Selecionar'}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <Box sx={{ gridColumn: fullRow }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={values.digital_login_enabled}
+                  onChange={(_, checked) =>
+                    setValues((v) => ({ ...v, digital_login_enabled: checked }))
+                  }
+                />
+              }
+              label="Permitir login digital (biometria)"
+            />
+          </Box>
 
             <TextField
               label="Status"

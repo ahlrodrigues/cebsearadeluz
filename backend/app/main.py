@@ -40,6 +40,26 @@ if webauthn_router is not None and os.getenv("WEB_AUTHN_ENABLED", "0") == "1":
     app.include_router(webauthn_router.router)
 
 
+def _ensure_user_digital_login_column():
+    """Add users.digital_login_enabled if missing (SQLite-safe)."""
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Check existing columns
+            cols = conn.execute(text("PRAGMA table_info(users)"))
+            names = {row[1] for row in cols}
+            if "digital_login_enabled" not in names:
+                conn.execute(text("ALTER TABLE users ADD COLUMN digital_login_enabled BOOLEAN NOT NULL DEFAULT 1"))
+                conn.commit()
+    except Exception:
+        # Best-effort; avoid breaking startup in environments without migration support
+        pass
+
+
+# Best-effort schema tweaks
+_ensure_user_digital_login_column()
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     # Avoid 404 noise when browsers request favicon on backend host

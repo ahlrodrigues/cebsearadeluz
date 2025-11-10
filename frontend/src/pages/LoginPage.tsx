@@ -91,9 +91,14 @@ const LoginPage = () => {
             <Box>
               <Button type="submit" variant="contained" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</Button>
             </Box>
-            {passkeyFlag && passkeyAvailable && (
+            {passkeyFlag && (
               <Box>
-                <Button variant="outlined" disabled={loading} onClick={loginWithPasskey}>Entrar com biometria (beta)</Button>
+                <Button variant="outlined" disabled={loading || !passkeyAvailable} onClick={loginWithPasskey}>Entrar com biometria (beta)</Button>
+                {!passkeyAvailable && (
+                  <Alert sx={{ mt: 1 }} severity="info">
+                    Para usar a biometria, acesse via HTTPS (ou localhost) e use um dispositivo com suporte a passkeys.
+                  </Alert>
+                )}
               </Box>
             )}
             <Typography variant="body2">

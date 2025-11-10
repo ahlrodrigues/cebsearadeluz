@@ -172,13 +172,16 @@ const EditMyProfile = () => {
             <TextField label="UF" value={state} onChange={(e) => setState(e.target.value)} fullWidth inputProps={{ maxLength: 2 }} />
             <TextField label="Rede social" value={socialNetwork} onChange={(e) => setSocialNetwork(e.target.value)} fullWidth />
             <Alert severity="info">Para alterar a senha, utilize a opção "Esqueci minha senha" na tela de login. Alterações de perfil/status são realizadas pela administração.</Alert>
-            {passkeyFlag && passkeyAvailable && (
+            {passkeyFlag && (
               <>
                 <Divider />
                 <Typography variant="h6">Login por biometria (beta)</Typography>
+                {!passkeyAvailable && (
+                  <Alert severity="info">Para ativar, acesse via HTTPS (ou localhost) em um dispositivo que suporte passkeys.</Alert>
+                )}
                 {passkeyMsg && <Alert severity="info">{passkeyMsg}</Alert>}
                 <Stack direction="row" spacing={1}>
-                  <Button variant="outlined" disabled={!me} onClick={async () => {
+                  <Button variant="outlined" disabled={!me || !passkeyAvailable} onClick={async () => {
                     try {
                       setPasskeyMsg(null)
                       const begin = await webauthnRegisterBegin()

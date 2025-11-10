@@ -4,7 +4,7 @@ import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { AUTH_API_BASE, webauthnLoginBegin, webauthnLoginFinish } from '../api/auth'
 import type { AxiosError } from 'axios'
-import { mapRequestOptions, assertionToJSON } from '../auth/webauthn'
+import { mapRequestOptions, assertionToJSON, detectPasskeyAvailable } from '../auth/webauthn'
 import { setTokens } from '../api/http'
 
 const LoginPage = () => {
@@ -13,6 +13,8 @@ const LoginPage = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
+  const passkeyFlag = (import.meta.env.VITE_WEB_AUTHN_ENABLED ?? '1') === '1'
   const [loading, setLoading] = useState(false)
   const apiBaseHint = useMemo(() => (AUTH_API_BASE || '(proxy do Vite)'), [])
 
@@ -41,6 +43,11 @@ const LoginPage = () => {
       setLoading(false)
     }
   }
+
+  // Detecta suporte real a passkeys (WebAuthn) no contexto atual
+  useEffect(() => {
+    detectPasskeyAvailable().then(setPasskeyAvailable).catch(() => setPasskeyAvailable(false))
+  }, [])
 
   async function loginWithPasskey() {
     setLoading(true)
@@ -84,7 +91,7 @@ const LoginPage = () => {
             <Box>
               <Button type="submit" variant="contained" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</Button>
             </Box>
-            {import.meta.env.VITE_WEB_AUTHN_ENABLED === '1' && 'credentials' in navigator && (
+            {passkeyFlag && passkeyAvailable && (
               <Box>
                 <Button variant="outlined" disabled={loading} onClick={loginWithPasskey}>Entrar com biometria (beta)</Button>
               </Box>

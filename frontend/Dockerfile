@@ -4,9 +4,11 @@ WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend ./
-# Allow passing API base at build time
+# Allow passing API base and feature flags at build time
 ARG API_BASE=
-ENV VITE_API_BASE_URL=$API_BASE
+ARG VITE_WEB_AUTHN_ENABLED=1
+ENV VITE_API_BASE_URL=$API_BASE \
+    VITE_WEB_AUTHN_ENABLED=$VITE_WEB_AUTHN_ENABLED
 RUN npm run build
 
 # Serve stage

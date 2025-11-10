@@ -4,7 +4,7 @@ import { http } from '../../api/http'
 import { lookupCep } from '../../api/cep'
 import SearchIcon from '@mui/icons-material/Search'
 import { webauthnRegisterBegin, webauthnRegisterFinish } from '../../api/auth'
-import { attestationToJSON, mapCreationOptions } from '../../auth/webauthn'
+import { attestationToJSON, mapCreationOptions, detectPasskeyAvailable } from '../../auth/webauthn'
 
 type Me = {
   id: number
@@ -34,6 +34,8 @@ const EditMyProfile = () => {
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
   const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null)
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
+  const passkeyFlag = (import.meta.env.VITE_WEB_AUTHN_ENABLED ?? '1') === '1'
 
   const load = async () => {
     try {
@@ -61,6 +63,7 @@ const EditMyProfile = () => {
 
   useEffect(() => {
     load()
+    detectPasskeyAvailable().then(setPasskeyAvailable).catch(() => setPasskeyAvailable(false))
   }, [])
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -169,7 +172,7 @@ const EditMyProfile = () => {
             <TextField label="UF" value={state} onChange={(e) => setState(e.target.value)} fullWidth inputProps={{ maxLength: 2 }} />
             <TextField label="Rede social" value={socialNetwork} onChange={(e) => setSocialNetwork(e.target.value)} fullWidth />
             <Alert severity="info">Para alterar a senha, utilize a opção "Esqueci minha senha" na tela de login. Alterações de perfil/status são realizadas pela administração.</Alert>
-            {import.meta.env.VITE_WEB_AUTHN_ENABLED === '1' && 'credentials' in navigator && (
+            {passkeyFlag && passkeyAvailable && (
               <>
                 <Divider />
                 <Typography variant="h6">Login por biometria (beta)</Typography>

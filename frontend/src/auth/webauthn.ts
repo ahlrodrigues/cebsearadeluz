@@ -65,3 +65,17 @@ export function assertionToJSON(cred: PublicKeyCredential): any {
   }
 }
 
+export async function detectPasskeyAvailable(): Promise<boolean> {
+  const hasCred = typeof navigator !== 'undefined' && 'credentials' in navigator
+  const hasPKC = typeof window !== 'undefined' && 'PublicKeyCredential' in window
+  const secureOK = typeof window !== 'undefined' && (window.isSecureContext || ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname))
+  if (!hasCred || !hasPKC || !secureOK) return false
+  try {
+    if (typeof (window as any).PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
+      return await (window as any).PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+    }
+  } catch {
+    // ignore and fallback to basic capability
+  }
+  return true
+}

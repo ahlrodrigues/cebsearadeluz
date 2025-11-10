@@ -1,9 +1,13 @@
 // Very small service worker for basic offline caching of static assets.
-const CACHE_NAME = 'assistido-cache-v2'
+const CACHE_NAME = 'assistido-cache-v3'
 const ASSETS = [
   '/',
   '/index.html',
   '/vite.svg',
+  '/apple-touch-icon.png',
+  '/icons/app-icon-120.png',
+  '/icons/app-icon-152.png',
+  '/icons/app-icon-167.png',
   '/icons/app-icon-180.png',
   '/icons/app-icon-192.png',
   '/icons/app-icon-512.png',

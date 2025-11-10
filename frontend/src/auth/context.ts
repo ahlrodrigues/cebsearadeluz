@@ -6,6 +6,7 @@ export type Session = { userId: string; role: Role } | null;
 
 export type AuthCtx = {
   session: Session;
+  booting: boolean;
   signin: (username: string, password: string) => Promise<{ userId: string; role: Role }>;
   signout: () => void;
 };

@@ -5,6 +5,7 @@ import { Ctx, type Session } from "./context";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session>(null);
+  const [booting, setBooting] = useState<boolean>(() => !!localStorage.getItem("refresh_token"));
   const idleTimer = useRef<number | null>(null);
   const lastActivity = useRef<number>(Date.now());
   const idleMinutes = Number(import.meta.env.VITE_IDLE_TIMEOUT_MIN ?? 15);
@@ -46,7 +47,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const payload = decodeJwtPayload<{ sub: string; role: any }>(pair.access_token);
           setSession({ userId: String(payload.sub), role: payload.role });
         })
-        .catch(() => void 0);
+        .catch(() => {
+          // refresh inválido: limpar para permitir redirecionamento ao login
+          localStorage.removeItem("refresh_token");
+        })
+        .finally(() => setBooting(false));
+    } else {
+      setBooting(false);
     }
   }, [session]);
 
@@ -84,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [session, idleMinutes]);
 
-  return <Ctx.Provider value={{ session, signin, signout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ session, booting, signin, signout }}>{children}</Ctx.Provider>;
 }
 
 // Note: useAuth moved to ./useAuth to satisfy react-refresh rule

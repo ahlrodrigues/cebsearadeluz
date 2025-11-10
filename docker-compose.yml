@@ -20,7 +20,8 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        API_BASE: http://localhost:8000
+        # Use API_BASE from environment (.env) or fallback
+        API_BASE: ${FRONTEND_API_BASE:-http://localhost:8000}
     ports:
       - "8080:80"
     depends_on:

@@ -32,6 +32,18 @@ Variáveis importantes (já configuradas no `docker-compose.yml`):
 - `PROTECT_PUBLIC_SCAN` — `1` (rota genérica de scan exige `recepcao` ou `admin`).
 - `REQUIRE_REGISTRATION_APPROVAL` — `0` (cadastro público já ativo por padrão; ajuste para `1` se desejar aprovar manualmente).
 - `SECRET_KEY` — troque em produção.
+  
+Para builds acessados de outros dispositivos (sem proxy), defina a base da API no build do frontend:
+
+```bash
+# No .env (raiz):
+FRONTEND_API_BASE=http://SEU_HOST:8000
+
+# Depois:
+docker compose build frontend && docker compose up -d frontend
+```
+
+Em produção, prefira HTTPS e configure `FRONTEND_API_BASE=https://SEU_HOST:8000` (ou reverse proxy para 443).
 
 ## Execução local (sem Docker)
 

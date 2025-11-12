@@ -13,7 +13,8 @@ const AppLayout = () => {
   const isReports = location.pathname.startsWith('/reports')
   const { session, signout } = useAuth()
   const navigate = useNavigate()
-  const logoUrl = new URL('/icons/app-icon.svg', import.meta.env.BASE_URL).toString()
+  const base = (import.meta.env.BASE_URL ?? '/').replace(/\/+$/, '')
+  const logoUrl = `${base}/icons/app-icon.svg`
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>

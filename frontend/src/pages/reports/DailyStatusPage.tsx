@@ -6,7 +6,14 @@ type Summary = { date_ref: string; total: number; success: number; failure: numb
 type Item = { id: number; created_at: string; user_name?: string | null; ok: boolean; ticket_number?: number | null; error?: string | null }
 
 const DailyStatusPage = () => {
-  const [dateRef, setDateRef] = useState<string>(new Date().toISOString().slice(0,10))
+  const todayLocal = () => {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+  const [dateRef, setDateRef] = useState<string>(todayLocal())
   const [summary, setSummary] = useState<Summary | null>(null)
   const [items, setItems] = useState<Item[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -72,4 +79,3 @@ const DailyStatusPage = () => {
 }
 
 export default DailyStatusPage
-

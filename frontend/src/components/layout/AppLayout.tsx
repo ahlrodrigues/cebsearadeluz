@@ -93,9 +93,7 @@ const AppLayout = () => {
                 Presenças
               </Button>
             )}
-            {(session?.role === 'recepcao' || session?.role === 'admin') && (
-              <Button size="small" component={RouterLink} to="/tickets" color="inherit">Senhas</Button>
-            )}
+            {/* Link "Senhas" removido: funcionalidade já disponível em Presenças */}
 
             {session?.role === 'admin' && (
               <>

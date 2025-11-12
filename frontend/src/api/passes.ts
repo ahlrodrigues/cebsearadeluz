@@ -107,3 +107,10 @@ export const scanPassPresenceKiosk = async (
   );
   return response.data;
 };
+
+export const deletePassSession = async (
+  userId: number,
+  sessionId: number,
+): Promise<void> => {
+  await http.delete(`/users/${userId}/passes/${sessionId}`);
+};

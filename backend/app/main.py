@@ -836,6 +836,80 @@ def register_pass_absence(
     )
     return session
 
+@app.delete("/users/{user_id}/passes/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_pass_session(
+    user_id: int,
+    session_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(["admin"])) if PROTECT_USER_ADMIN_ROUTES else None,
+):
+    """Exclui um registro de sessão e ajusta o ciclo conforme necessário.
+
+    Regras:
+    - Se o ciclo estava concluído e já existe um próximo ciclo com sessões, bloqueia a exclusão.
+    - Se o ciclo estava concluído e o próximo ciclo não possui sessões, ele é removido ao reabrir o ciclo.
+    - Ao reabrir, flags de entrevista do ciclo são limpas.
+    """
+    sess = db.query(models.PassSession).filter(models.PassSession.id == session_id).first()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+    cycle = db.query(models.PassCycle).filter(models.PassCycle.id == sess.cycle_id).first()
+    if not cycle or cycle.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Sessão não pertence ao assistido informado.")
+
+    was_concluded = cycle.status == schemas.PassCycleStatus.CONCLUIDO.value
+
+    next_cycle = (
+        db.query(models.PassCycle)
+        .filter(models.PassCycle.user_id == user_id, models.PassCycle.id > cycle.id)
+        .order_by(models.PassCycle.id.asc())
+        .first()
+    )
+
+    if was_concluded and next_cycle:
+        has_sessions = (
+            db.query(models.PassSession)
+            .filter(models.PassSession.cycle_id == next_cycle.id)
+            .count()
+        ) > 0
+        if has_sessions:
+            raise HTTPException(
+                status_code=400,
+                detail="Não é possível excluir: o próximo ciclo já possui registros.",
+            )
+
+    # Exclui a sessão
+    db.delete(sess)
+    db.flush()
+
+    presence_count = (
+        db.query(models.PassSession)
+        .filter(
+            models.PassSession.cycle_id == cycle.id,
+            models.PassSession.status == schemas.PassSessionStatus.PRESENTE.value,
+        )
+        .count()
+    )
+
+    if was_concluded and presence_count < (cycle.sequence_length or 0):
+        cycle.status = schemas.PassCycleStatus.ATIVO.value
+        cycle.completed_at = None
+        cycle.requires_interview = False
+        cycle.interview_scheduled_for = None
+        cycle.interview_completed_at = None
+        db.add(cycle)
+
+        if next_cycle:
+            empty_next = (
+                db.query(models.PassSession)
+                .filter(models.PassSession.cycle_id == next_cycle.id)
+                .count()
+            ) == 0
+            if empty_next:
+                db.delete(next_cycle)
+
+    db.commit()
+    return None
 
 # Reserve manual tickets (avulsos) following today's sequence; logs in ScanLog
 class TicketReserveRequest(BaseModel):

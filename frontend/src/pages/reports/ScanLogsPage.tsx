@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 import { Alert, Box, Button, Container, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { fetchScanLogs, fetchScanLogsSummary, type ScanLog, type ScanLogsSummary } from '../../api/reports'
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
+const todayISO = () => {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 const ScanLogsPage = () => {
   const [date, setDate] = useState<string>(todayISO())

@@ -35,8 +35,10 @@ import {
   fetchPassCycles,
   registerPassAbsence,
   registerPassPresence,
+  deletePassSession,
   type PassCycle,
 } from "../../api/passes";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { getUser, getUserQrData } from "../../api/users";
 
 const formatDate = (iso?: string | null) => {
@@ -54,7 +56,13 @@ const formatDateTime = (iso?: string | null) => {
   }).format(new Date(iso));
 };
 
-const TODAY_ISO = () => new Date().toISOString().slice(0, 10);
+const TODAY_ISO = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
 
 type DialogType = "presence" | "absence" | null;
 
@@ -157,6 +165,26 @@ const UserPassesPage = () => {
           detail ||
           axiosError.message ||
           "Não foi possível registrar a ausência.",
+        severity: "error",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ sessionId }: { sessionId: number }) =>
+      deletePassSession(userId, sessionId),
+    onSuccess: () => {
+      setSnackbar({ message: "Registro apagado.", severity: "success" });
+      queryClient.invalidateQueries({ queryKey: ["pass-cycles", userId] });
+    },
+    onError: (error) => {
+      const axiosError = error as AxiosError;
+      const detail = (
+        axiosError.response?.data as { detail?: string } | undefined
+      )?.detail;
+      setSnackbar({
+        message:
+          detail || axiosError.message || "Não foi possível apagar o registro.",
         severity: "error",
       });
     },
@@ -384,6 +412,9 @@ const UserPassesPage = () => {
                       >
                         Observações
                       </TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap", textAlign: "center", fontWeight: 600 }}>
+                        Ações
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -422,6 +453,24 @@ const UserPassesPage = () => {
                             sx={{ whiteSpace: "nowrap", textAlign: "left" }}
                           >
                             {session.notes ?? "—"}
+                          </TableCell>
+                          <TableCell sx={{ whiteSpace: "nowrap", textAlign: "center" }}>
+                            {session.status === "Presente" && (
+                              <Button
+                                size="small"
+                                color="error"
+                                startIcon={<DeleteIcon />}
+                                onClick={async () => {
+                                  if (!confirm("Apagar este registro de presença?")) return;
+                                  try {
+                                    await deleteMutation.mutateAsync({ sessionId: session.id });
+                                  } catch {}
+                                }}
+                                disabled={deleteMutation.isPending}
+                              >
+                                Apagar
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))

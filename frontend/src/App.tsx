@@ -24,7 +24,6 @@ import ForbiddenPage from './pages/ForbiddenPage'
 import InterviewDashboard from './pages/InterviewDashboard'
 import { PrivateRoute, RoleRoute } from './auth/RouteGuards'
 import InstallPage from './pages/InstallPage'
-import TicketsPage from './pages/TicketsPage'
 
 const HomeRedirect = () => {
   const { session } = useAuth()
@@ -43,16 +42,7 @@ const App = () => {
         <Route path="/confirm" element={<ConfirmAccount />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/install" element={<InstallPage />} />
-        <Route
-          path="/tickets"
-          element={
-            <PrivateRoute>
-              <RoleRoute roles={["recepcao","admin"]}>
-                <TicketsPage />
-              </RoleRoute>
-            </PrivateRoute>
-          }
-        />
+        {/** Rota "/tickets" removida: emissão de senhas via página de Presenças */}
         <Route
           path="/users"
           element={

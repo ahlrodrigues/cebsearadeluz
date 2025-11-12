@@ -27,7 +27,13 @@ const ScanPassPage = () => {
       } else if (token.trim()) {
         payload.token = token.trim()
       }
-      payload.date = new Date().toISOString().slice(0, 10)
+      {
+        const d = new Date()
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        payload.date = `${y}-${m}-${day}`
+      }
       const res = await scanPassPresence(payload)
       setResult(`OK: sessão #${res.sequence_index} em ${res.scheduled_for}`)
     } catch (e: unknown) {

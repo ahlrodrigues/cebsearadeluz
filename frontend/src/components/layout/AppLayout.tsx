@@ -13,25 +13,54 @@ const AppLayout = () => {
   const isReports = location.pathname.startsWith('/reports')
   const { session, signout } = useAuth()
   const navigate = useNavigate()
+  const logoUrl = new URL('/icons/app-icon.svg', import.meta.env.BASE_URL).toString()
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar position="static" color="primary" elevation={1}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            CEB Seara da Luz
-          </Typography>
-          <Stack direction="row" spacing={1}>
+        {/* Linha 1: logo + nome */}
+        <Toolbar sx={{ minHeight: 56, py: 0.5 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1, minWidth: 0 }}>
+            <Box component="img" src={logoUrl} alt="CEB Seara de Luz" sx={{ width: 28, height: 28 }} />
+            <Typography
+              variant="h6"
+              component="div"
+              sx={{
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontWeight: 600,
+              }}
+            >
+              CEB Seara de Luz
+            </Typography>
+          </Stack>
+        </Toolbar>
+
+        {/* Linha 2: links de navegação (empilha e quebra no mobile) */}
+        <Toolbar variant="dense" sx={{ pt: 0, pb: 1 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 1,
+              width: '100%',
+              alignItems: 'center',
+              '& .MuiButton-root': { minHeight: 30, padding: '2px 10px' },
+            }}
+          >
             {!session && (
               <>
-                <Button component={RouterLink} to="/signup" color="inherit">Novo cadastro</Button>
+                <Button size="small" component={RouterLink} to="/signup" color="inherit">Novo cadastro</Button>
                 <InstallPwaButton />
-                <Button component={RouterLink} to="/login" color="inherit">Entrar</Button>
+                <Button size="small" component={RouterLink} to="/login" color="inherit">Entrar</Button>
               </>
             )}
+
             {session?.role === 'admin' && (
               <>
                 <Button
+                  size="small"
                   component={RouterLink}
                   to="/users"
                   color="inherit"
@@ -40,6 +69,7 @@ const AppLayout = () => {
                   Assistidos
                 </Button>
                 <Button
+                  size="small"
                   component={RouterLink}
                   to="/users/new"
                   color="inherit"
@@ -49,8 +79,10 @@ const AppLayout = () => {
                 </Button>
               </>
             )}
+
             {(session?.role === 'recepcao' || session?.role === 'admin') && (
               <Button
+                size="small"
                 component={RouterLink}
                 to="/kiosk"
                 color="inherit"
@@ -61,11 +93,13 @@ const AppLayout = () => {
               </Button>
             )}
             {(session?.role === 'recepcao' || session?.role === 'admin') && (
-              <Button component={RouterLink} to="/tickets" color="inherit">Senhas</Button>
+              <Button size="small" component={RouterLink} to="/tickets" color="inherit">Senhas</Button>
             )}
+
             {session?.role === 'admin' && (
               <>
                 <Button
+                  size="small"
                   component={RouterLink}
                   to="/reports/scans"
                   color="inherit"
@@ -74,24 +108,26 @@ const AppLayout = () => {
                 >
                   Relatórios
                 </Button>
-                <Button component={RouterLink} to="/reports/daily-status" color="inherit">Status do dia</Button>
+                <Button size="small" component={RouterLink} to="/reports/daily-status" color="inherit">Status do dia</Button>
               </>
             )}
+
             {session?.role === 'user' && (
               <>
-                <Button component={RouterLink} to="/app/assistido/qr" color="inherit">Meu QR</Button>
-                <Button component={RouterLink} to="/app/assistido/passes" color="inherit">Meus passes</Button>
-                <Button component={RouterLink} to="/app/assistido/profile" color="inherit">Meu cadastro</Button>
+                <Button size="small" component={RouterLink} to="/app/assistido/qr" color="inherit">Meu QR</Button>
+                <Button size="small" component={RouterLink} to="/app/assistido/passes" color="inherit">Meus passes</Button>
+                <Button size="small" component={RouterLink} to="/app/assistido/profile" color="inherit">Meu cadastro</Button>
               </>
             )}
-            {/* Botão de instalar PWA já aparece no bloco inicial antes do login */}
+
             {(session?.role === 'entrevista' || session?.role === 'admin') && (
-              <Button component={RouterLink} to="/interviews" color="inherit">Entrevistas</Button>
+              <Button size="small" component={RouterLink} to="/interviews" color="inherit">Entrevistas</Button>
             )}
+
             {session && (
-              <Button color="inherit" onClick={() => { signout(); navigate('/login'); }}>Sair</Button>
+              <Button size="small" sx={{ ml: 'auto' }} color="inherit" onClick={() => { signout(); navigate('/login'); }}>Sair</Button>
             )}
-          </Stack>
+          </Box>
         </Toolbar>
       </AppBar>
 

@@ -12,7 +12,7 @@ import ScanPassPage from './pages/ScanPassPage'
 import UserQrPage from './pages/users/UserQrPage'
 import KioskPage from './pages/KioskPage'
 import ScanLogsPage from './pages/reports/ScanLogsPage'
-import DailyStatusPage from './pages/reports/DailyStatusPage'
+// import DailyStatusPage from './pages/reports/DailyStatusPage'
 import SignupPage from './pages/assistido/SignupPage'
 import MyQrPage from './pages/assistido/MyQrPage'
 import MyPassesPage from './pages/assistido/MyPassesPage'
@@ -127,22 +127,13 @@ const App = () => {
           path="/reports/scans"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["admin"]}>
+              <RoleRoute roles={["admin","recepcao","entrevista"]}>
                 <ScanLogsPage />
               </RoleRoute>
             </PrivateRoute>
           }
         />
-        <Route
-          path="/reports/daily-status"
-          element={
-            <PrivateRoute>
-              <RoleRoute roles={["admin"]}>
-                <DailyStatusPage />
-              </RoleRoute>
-            </PrivateRoute>
-          }
-        />
+        {/** Rota removida: /reports/daily-status */}
         <Route
           path="/app/assistido/qr"
           element={

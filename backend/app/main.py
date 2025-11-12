@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -483,6 +483,12 @@ def scan_qr_and_register_presence(
     if getattr(user, "status", None) != "Ativo" or getattr(user, "is_active", False) is False:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuário desativado.")
 
+    # Processa no-show automático de entrevista do dia anterior para este usuário
+    try:
+        _auto_handle_interview_no_show(db, user_id=resolved_user_id, today=date.today())
+    except Exception:
+        pass
+
     presence_date = payload.date or date.today()
     notes = payload.notes or "Presença via QR"
     session = passes.register_presence(db, user_id=resolved_user_id, presence_date=presence_date, notes=notes)
@@ -535,6 +541,108 @@ def _log_scan(
     return log
 
 
+def _has_interview_log_for_date(db: Session, user_id: int, day: date) -> bool:
+    _ensure_scanlog_table()
+    exists = (
+        db.query(models.ScanLog)
+        .filter(
+            models.ScanLog.user_id == user_id,
+            models.ScanLog.token_type == "interview",
+            models.ScanLog.scanned_for == day,
+        )
+        .first()
+    )
+    return bool(exists)
+
+
+def _auto_handle_interview_no_show(db: Session, user_id: int, today: date) -> None:
+    """Se houver exame pendente de entrevista em um dia anterior com presença registrada
+    e sem conclusão da entrevista, marca automaticamente 'Não realizada por ausência'.
+
+    Na 2ª ocorrência consecutiva, fecha o exame e cria ciclo com passe indicado (fallback P2).
+    """
+    # localizar a última presença anterior a 'today'
+    from sqlalchemy import func
+    last_presence_day = (
+        db.query(func.max(models.PassSession.scheduled_for))
+        .join(models.PassCycle, models.PassCycle.id == models.PassSession.cycle_id)
+        .filter(
+            models.PassCycle.user_id == user_id,
+            models.PassSession.status == schemas.PassSessionStatus.PRESENTE.value,
+            models.PassSession.scheduled_for < today,
+        )
+        .scalar()
+    )
+    if not last_presence_day:
+        return
+
+    # Existe exame pendente (ciclo concluído aguardando entrevista) naquele momento?
+    c = (
+        db.query(models.PassCycle)
+        .filter(
+            models.PassCycle.user_id == user_id,
+            models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
+            models.PassCycle.requires_interview == True,
+            models.PassCycle.interview_completed_at.is_(None),
+            # concluído em data <= à última presença
+            models.PassCycle.completed_at <= last_presence_day,
+        )
+        .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
+        .first()
+    )
+    if not c:
+        return
+
+    # Já existe log de entrevista para aquele dia?
+    if _has_interview_log_for_date(db, user_id, last_presence_day):
+        return
+
+    # Marca no-show para o dia anterior
+    _log_scan(
+        db,
+        raw=None,
+        token_type="interview",
+        scanned_for=last_presence_day,
+        ok=False,
+        error=INTERVIEW_NO_SHOW_LABEL,
+        user_id=user_id,
+        session_id=None,
+        ticket_number=None,
+    )
+
+    # Conta consecutivas e aplica regra da 2ª ausência
+    streak = _count_consecutive_interview_no_shows(db, user_id)
+    if streak >= 2:
+        from datetime import datetime, timezone
+        c.interview_completed_at = datetime.now(timezone.utc)
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+
+        active = passes.get_active_cycle(db, user_id)
+        if not active:
+            exam = crud.get_exam_record(db, user_id)
+            desired_pass = None
+            if exam and getattr(exam, "next_pass_type", None):
+                desired_pass = exam.next_pass_type
+            if not desired_pass:
+                desired_pass = schemas.PassType.P2.value
+            user = crud.get_user(db, user_id)
+            start_from = today
+            next_start = passes.compute_next_assistance_date(
+                getattr(user, "assistance_day", None), start_from
+            ) or (start_from + timedelta(days=7))
+            passes.create_pass_cycle(
+                db,
+                user_id=user_id,
+                stage_number=1,
+                pass_type=desired_pass,
+                start_date=next_start,
+                assistance_day=getattr(user, "assistance_day", None),
+            )
+            db.commit()
+
+
 @app.post(
     "/passes/scan-kiosk",
     response_model=schemas.ScanKioskResponse,
@@ -545,6 +653,11 @@ def scan_kiosk(payload: schemas.QRScanRequest, db: Session = Depends(get_db), _=
     token_type: str | None = None
     resolved_user_id: int | None = None
     try:
+        # Processa no-show automático de entrevista do dia anterior
+        try:
+            _auto_handle_interview_no_show(db, user_id=int(getattr(payload, 'user_id', 0) or 0), today=date.today())
+        except Exception:
+            pass
         if not payload.token:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Forneça 'token'.")
 
@@ -586,6 +699,12 @@ def scan_kiosk(payload: schemas.QRScanRequest, db: Session = Depends(get_db), _=
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
         if getattr(user, "status", None) != "Ativo" or getattr(user, "is_active", False) is False:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuário desativado.")
+
+        # Processa no-show automático de entrevista do dia anterior para este usuário
+        try:
+            _auto_handle_interview_no_show(db, user_id=resolved_user_id, today=date.today())
+        except Exception:
+            pass
 
         presence_date = payload.date or date.today()
         session = passes.register_presence(
@@ -684,6 +803,196 @@ def enforce_absence_deactivation(months: int = 6, db: Session = Depends(get_db),
     return enforce_auto_deactivation(db, months=months)
 
 
+def _process_interview_no_show_for_user_on_date(db: Session, user_id: int, day: date) -> bool:
+    """Marca no-show de entrevista no dia informado, se aplicável.
+
+    Retorna True se marcou e aplicou a lógica; False caso contrário.
+    """
+    # Existe exame pendente naquele momento?
+    c = (
+        db.query(models.PassCycle)
+        .filter(
+            models.PassCycle.user_id == user_id,
+            models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
+            models.PassCycle.requires_interview == True,
+            models.PassCycle.interview_completed_at.is_(None),
+            models.PassCycle.completed_at <= day,
+        )
+        .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
+        .first()
+    )
+    if not c:
+        return False
+    # Já há log nesse dia?
+    if _has_interview_log_for_date(db, user_id, day):
+        return False
+    # Marca no-show
+    _log_scan(
+        db,
+        raw=None,
+        token_type="interview",
+        scanned_for=day,
+        ok=False,
+        error=INTERVIEW_NO_SHOW_LABEL,
+        user_id=user_id,
+        session_id=None,
+        ticket_number=None,
+    )
+    # Regra 2 consecutivas
+    streak = _count_consecutive_interview_no_shows(db, user_id)
+    if streak >= 2:
+        from datetime import datetime, timezone
+        c.interview_completed_at = datetime.now(timezone.utc)
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+        active = passes.get_active_cycle(db, user_id)
+        if not active:
+            exam = crud.get_exam_record(db, user_id)
+            desired_pass = None
+            if exam and getattr(exam, "next_pass_type", None):
+                desired_pass = exam.next_pass_type
+            if not desired_pass:
+                desired_pass = schemas.PassType.P2.value
+            user = crud.get_user(db, user_id)
+            start_from = day
+            next_start = passes.compute_next_assistance_date(
+                getattr(user, "assistance_day", None), start_from
+            ) or (start_from + timedelta(days=7))
+            passes.create_pass_cycle(
+                db,
+                user_id=user_id,
+                stage_number=1,
+                pass_type=desired_pass,
+                start_date=next_start,
+                assistance_day=getattr(user, "assistance_day", None),
+            )
+            db.commit()
+    return True
+
+
+@app.post("/admin/policies/process-interview-no-shows")
+def process_interview_no_shows(date_ref: Optional[date] = None, db: Session = Depends(get_db), _=Depends(require_roles(["admin"]))):
+    """Processa automaticamente ausências de entrevista para o dia informado.
+
+    Use no fechamento do dia para marcar "Não realizada por ausência" para todos os presentes
+    que tinham exame pendente e não realizaram entrevista. Aplica também a regra da 2ª ausência.
+    """
+    target = date_ref or date.today()
+    # usuários com presença no dia
+    user_ids = (
+        db.query(models.PassCycle.user_id)
+        .join(models.PassSession, models.PassSession.cycle_id == models.PassCycle.id)
+        .filter(
+            models.PassSession.scheduled_for == target,
+            models.PassSession.status == schemas.PassSessionStatus.PRESENTE.value,
+        )
+        .distinct()
+        .all()
+    )
+    processed = 0
+    for (uid,) in user_ids:
+        try:
+            if _process_interview_no_show_for_user_on_date(db, uid, target):
+                processed += 1
+        except Exception:
+            continue
+    return {"date_ref": target, "processed": processed}
+
+
+INTERVIEW_NO_SHOW_LABEL = "Não realizada por ausência"
+
+
+def _count_consecutive_interview_no_shows(db: Session, user_id: int) -> int:
+    _ensure_scanlog_table()
+    # Conta a partir do mais recente quantos "no-show" consecutivos de entrevista existem
+    q = (
+        db.query(models.ScanLog)
+        .filter(models.ScanLog.user_id == user_id, models.ScanLog.token_type == "interview")
+        .order_by(models.ScanLog.scanned_for.desc().nullslast(), models.ScanLog.created_at.desc())
+    )
+    count = 0
+    for l in q.all():
+        if l.ok is False and (l.error or "").strip().lower() == INTERVIEW_NO_SHOW_LABEL.lower():
+            count += 1
+        else:
+            break
+    return count
+
+
+@app.post("/exams/{user_id}/no-show")
+def exams_no_show(user_id: int, db: Session = Depends(get_db), _=Depends(require_roles(["entrevista","recepcao","admin"]))):
+    """Marca entrevista do dia como não realizada por ausência.
+
+    Registra um log de entrevista e, na 2ª ocorrência consecutiva, fecha o exame e garante ciclo ativo
+    com o passe indicado na ficha.
+    """
+    # Verifica existência de ciclo concluído aguardando entrevista
+    c = (
+        db.query(models.PassCycle)
+        .filter(
+            models.PassCycle.user_id == user_id,
+            models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
+            models.PassCycle.requires_interview == True,
+            models.PassCycle.interview_completed_at.is_(None),
+        )
+        .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
+        .first()
+    )
+    if not c:
+        raise HTTPException(status_code=404, detail="Nenhum exame pendente para este usuário.")
+
+    # Registra log de no-show de entrevista
+    today = date.today()
+    _log_scan(
+        db,
+        raw=None,
+        token_type="interview",
+        scanned_for=today,
+        ok=False,
+        error=INTERVIEW_NO_SHOW_LABEL,
+        user_id=user_id,
+        session_id=None,
+        ticket_number=None,
+    )
+
+    # Conta consecutivas e, se for a 2ª, fechar exame e garantir ciclo ativo com passe indicado
+    streak = _count_consecutive_interview_no_shows(db, user_id)
+    if streak >= 2:
+        # Fecha exame
+        from datetime import datetime, timezone
+        c.interview_completed_at = datetime.now(timezone.utc)
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+
+        # Garante ciclo ativo conforme passe indicado
+        active = passes.get_active_cycle(db, user_id)
+        if not active:
+            exam = crud.get_exam_record(db, user_id)
+            desired_pass = None
+            if exam and getattr(exam, "next_pass_type", None):
+                desired_pass = exam.next_pass_type
+            if not desired_pass:
+                desired_pass = schemas.PassType.P2.value
+            user = crud.get_user(db, user_id)
+            start_from = today
+            next_start = passes.compute_next_assistance_date(
+                getattr(user, "assistance_day", None), start_from
+            ) or (start_from + timedelta(days=7))
+            passes.create_pass_cycle(
+                db,
+                user_id=user_id,
+                stage_number=1,
+                pass_type=desired_pass,
+                start_date=next_start,
+                assistance_day=getattr(user, "assistance_day", None),
+            )
+            db.commit()
+
+    return {"ok": True, "streak": streak}
+
+
 @app.get("/interviews/completed")
 def interviews_completed(
     search: str | None = None,
@@ -740,7 +1049,7 @@ def interviews_completed(
 
 
 @app.get("/exams/queue", response_model=list[schemas.ExamQueueItem])
-def exams_queue(db: Session = Depends(get_db), _=Depends(require_roles(["exame","admin"]))):
+def exams_queue(db: Session = Depends(get_db), _=Depends(require_roles(["entrevista","recepcao","admin"]))):
     # Latest concluded cycles that require interview and not yet completed
     from sqlalchemy.orm import joinedload
     q = (
@@ -809,6 +1118,7 @@ def exams_complete(user_id: int, db: Session = Depends(get_db), _=Depends(requir
     db.add(c)
     db.commit()
     db.refresh(c)
+
     return c
 
 

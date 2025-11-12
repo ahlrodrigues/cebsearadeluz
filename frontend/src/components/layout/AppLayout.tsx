@@ -95,7 +95,7 @@ const AppLayout = () => {
             )}
             {/* Link "Senhas" removido: funcionalidade já disponível em Presenças */}
 
-            {session?.role === 'admin' && (
+            {(session?.role === 'admin' || session?.role === 'recepcao' || session?.role === 'entrevista') && (
               <>
                 <Button
                   size="small"
@@ -107,7 +107,7 @@ const AppLayout = () => {
                 >
                   Relatórios
                 </Button>
-                <Button size="small" component={RouterLink} to="/reports/daily-status" color="inherit">Status do dia</Button>
+                {/* Status do dia removido: consolidado no relatório principal */}
               </>
             )}
 

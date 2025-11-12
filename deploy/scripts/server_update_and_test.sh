@@ -94,3 +94,15 @@ PY"
 set -e
 
 echo "Done."
+
+echo "==> Installing/updating daily cron for interview no-shows"
+CRON_FILE="/etc/cron.d/cebsearadeluz-process-interviews"
+CRON_LINE="30 22 * * * cebsearadeluz DATE_REF= \"\" cd /opt/cebsearadeluz && DATABASE_URL=sqlite:////var/lib/cebsearadeluz/app.db /opt/cebsearadeluz/venv/bin/python -m backend.scripts.process_interview_no_shows >> /var/log/cebsearadeluz-cron.log 2>&1"
+sudo bash -lc "printf '%s\n' '# Auto: process daily interview no-shows' '$CRON_LINE' > '$CRON_FILE' && chmod 0644 '$CRON_FILE' && (service cron reload || systemctl restart cron || true) && touch /var/log/cebsearadeluz-cron.log || true"
+echo "Cron installed at $CRON_FILE (runs 22:30 daily)"
+
+echo "==> Installing/updating daily cron for auto deactivation (>90d)"
+CRON_FILE2="/etc/cron.d/cebsearadeluz-auto-deactivate"
+CRON_LINE2="15 23 * * * cebsearadeluz MONTHS=3 cd /opt/cebsearadeluz && DATABASE_URL=sqlite:////var/lib/cebsearadeluz/app.db /opt/cebsearadeluz/venv/bin/python -m backend.scripts.enforce_auto_deactivation >> /var/log/cebsearadeluz-cron.log 2>&1"
+sudo bash -lc "printf '%s\n' '# Auto: deactivate users with >90d without presence (daily)' '$CRON_LINE2' > '$CRON_FILE2' && chmod 0644 '$CRON_FILE2' && (service cron reload || systemctl restart cron || true) && touch /var/log/cebsearadeluz-cron.log || true"
+echo "Cron installed at $CRON_FILE2 (runs 23:15 daily)"

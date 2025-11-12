@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Alert, Box, Button, Container, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Container, Divider, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { fetchScanLogs, fetchScanLogsSummary, type ScanLog, type ScanLogsSummary } from '../../api/reports'
+import { fetchExamQueue, type ExamQueueItem } from '../../api/exam_ops'
+import { fetchCompletedInterviews, type InterviewItem } from '../../api/interviews'
 
 const todayISO = () => {
   const d = new Date()
@@ -16,6 +18,10 @@ const ScanLogsPage = () => {
   const [summary, setSummary] = useState<ScanLogsSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [queue, setQueue] = useState<ExamQueueItem[]>([])
+  const [queueError, setQueueError] = useState<string | null>(null)
+  const [completed, setCompleted] = useState<InterviewItem[]>([])
+  const [completedError, setCompletedError] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -40,6 +46,36 @@ const ScanLogsPage = () => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date])
+
+  const loadQueues = async () => {
+    try {
+      setQueueError(null)
+      const items = await fetchExamQueue()
+      setQueue(items)
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      const message = (e as Error)?.message || 'Erro'
+      setQueueError(String(detail || message))
+    }
+  }
+
+  const loadCompleted = async () => {
+    try {
+      setCompletedError(null)
+      const items = await fetchCompletedInterviews()
+      setCompleted(items)
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      const message = (e as Error)?.message || 'Erro'
+      setCompletedError(String(detail || message))
+    }
+  }
+
+  useEffect(() => {
+    // load auxiliary lists once
+    loadQueues()
+    loadCompleted()
+  }, [])
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -87,6 +123,72 @@ const ScanLogsPage = () => {
                 <TableRow>
                   <TableCell colSpan={6}>
                     <Typography color="text.secondary">Sem leituras para a data.</Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+
+          <Divider sx={{ my: 2 }} />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="h6">Marcados para exame</Typography>
+            <Chip label={queue.length} size="small" color="primary" variant="outlined" />
+            <Button size="small" onClick={loadQueues}>Atualizar</Button>
+          </Stack>
+          {queueError && <Alert severity="error">{queueError}</Alert>}
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Nome</TableCell>
+                <TableCell>Tipo</TableCell>
+                <TableCell>Agendado para</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {queue.map((q) => (
+                <TableRow key={`${q.user_id}:${q.cycle_id}`}>
+                  <TableCell>{q.name}</TableCell>
+                  <TableCell>{q.pass_type ?? ''}</TableCell>
+                  <TableCell>{q.scheduled_for ?? ''}</TableCell>
+                </TableRow>
+              ))}
+              {queue.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3}>
+                    <Typography color="text.secondary">Nenhum cadastro marcado para exame.</Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+
+          <Divider sx={{ my: 2 }} />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="h6">Exames prontos</Typography>
+            <Chip label={completed.length} size="small" color="primary" variant="outlined" />
+            <Button size="small" onClick={loadCompleted}>Atualizar</Button>
+          </Stack>
+          {completedError && <Alert severity="warning">{completedError}</Alert>}
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Nome</TableCell>
+                <TableCell>Próximo passe</TableCell>
+                <TableCell>Tipo</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {completed.map((it) => (
+                <TableRow key={it.id}>
+                  <TableCell>{it.name}</TableCell>
+                  <TableCell>{it.next_pass_date ?? ''}</TableCell>
+                  <TableCell>{it.pass_type ?? ''}</TableCell>
+                </TableRow>
+              ))}
+              {completed.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3}>
+                    <Typography color="text.secondary">Nenhum exame pronto.</Typography>
                   </TableCell>
                 </TableRow>
               )}

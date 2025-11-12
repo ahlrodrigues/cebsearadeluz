@@ -281,18 +281,93 @@ def register_presence(
     user = db.query(models.User).filter(models.User.id == user_id).first()
     assistance_day = user.assistance_day if user else None
 
+    # Reativação automática no primeiro registro de presença
+    if user and (getattr(user, "status", None) != "Ativo" or getattr(user, "is_active", False) is False):
+        user.status = "Ativo"
+        user.is_active = True
+        db.add(user)
+        db.flush()
+
     cycle = _query_active_cycle(db, user_id)
 
     if cycle is None:
+        # Sem ciclo ativo: decidir como iniciar na PRIMEIRA presença
+        # 1) Se houver exame concluído com indicação de próximo passe, usa-o
+        desired_pass: Optional[str] = None
+        try:
+            # Verifica se existe ciclo concluído com entrevista completada
+            concluded = (
+                db.query(models.PassCycle)
+                .filter(
+                    models.PassCycle.user_id == user_id,
+                    models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
+                    models.PassCycle.requires_interview == True,
+                    models.PassCycle.interview_completed_at.isnot(None),
+                )
+                .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
+                .first()
+            )
+            if concluded is not None:
+                exam = db.query(models.ExamRecord).filter(models.ExamRecord.user_id == user_id).first()
+                if exam and getattr(exam, "next_pass_type", None):
+                    desired_pass = exam.next_pass_type
+        except Exception:
+            desired_pass = None
+
+        stage_number = 1
+        pass_type = None
+        if desired_pass:
+            pass_type = desired_pass
+        else:
+            # 2) Sem indicação de exame: regra de 60 dias
+            last_presence_date = _get_last_presence_date(db, user_id)
+            if last_presence_date is None:
+                pass_type = schemas.PassType.P2.value
+            else:
+                try:
+                    delta_days = (presence_date - last_presence_date).days
+                except Exception:
+                    delta_days = 999999
+                if delta_days >= 60:
+                    pass_type = schemas.PassType.P2.value
+                else:
+                    latest = _get_latest_cycle(db, user_id)
+                    if latest is not None:
+                        stage_number = latest.stage_number
+                        pass_type = latest.pass_type
+        if not pass_type:
+            pass_type = schemas.PassType.P2.value
         cycle = create_pass_cycle(
             db,
             user_id=user_id,
-            stage_number=1,
+            stage_number=stage_number,
+            pass_type=pass_type,
             start_date=presence_date,
             assistance_day=assistance_day,
         )
 
-    # regra de reinício: 2 ausências no ciclo (independente de serem consecutivas)
+    # Regra de 60 dias: se a última presença for há 60 dias ou mais, reinicia ciclo com P2
+    presence_note = notes
+    last_presence_date_for_user = _get_last_presence_date(db, user_id)
+    if last_presence_date_for_user is not None:
+        try:
+            gap_days = (presence_date - last_presence_date_for_user).days
+        except Exception:
+            gap_days = 0
+        if gap_days >= 60:
+            _interrupt_cycle(db, cycle, interrupted_at=presence_date)
+            db.flush()
+            cycle = create_pass_cycle(
+                db,
+                user_id=user_id,
+                stage_number=1,
+                pass_type=schemas.PassType.P2.value,
+                start_date=presence_date,
+                assistance_day=assistance_day,
+            )
+            presence_note = RESTART_CYCLE_NOTE
+
+    # regra de reinício por ausências: 2 ausências no ciclo (independente de serem consecutivas)
     total_absences = _count_total_absences(db, cycle.id)
     if total_absences >= 2:
         _interrupt_cycle(db, cycle, interrupted_at=presence_date)
@@ -307,8 +382,6 @@ def register_presence(
         )
         # Anota nas observações da primeira presença do novo ciclo
         presence_note = RESTART_CYCLE_NOTE
-    else:
-        presence_note = notes
 
     session = models.PassSession(
         cycle_id=cycle.id,
@@ -332,20 +405,9 @@ def register_presence(
     )
 
     if total_presences >= cycle.sequence_length:
-        _finalize_cycle(db, cycle, completed_at=presence_date)
+        # Fechou ciclo: marcar para exame (requires_interview=True) e NÃO criar próximo ciclo aqui.
+        _finalize_cycle(db, cycle, completed_at=presence_date, requires_interview=True)
         db.flush()
-        next_stage = cycle.stage_number + 1
-        if next_stage <= len(PASS_TYPE_SEQUENCE):
-            next_start = _next_assistance_date(assistance_day, presence_date) or (
-                presence_date + timedelta(days=7)
-            )
-            create_pass_cycle(
-                db,
-                user_id=user_id,
-                stage_number=next_stage,
-                start_date=next_start,
-                assistance_day=assistance_day,
-            )
 
     db.commit()
     db.refresh(session)
@@ -375,12 +437,43 @@ def register_absence(
 
     existing = _find_session_by_date(cycle, scheduled_date)
     if existing:
-        return existing
-
-    session_record = _create_absence_session(
+        session_record = existing
+    else:
+        session_record = _create_absence_session(
         db,
         cycle,
         scheduled_for=scheduled_date,
         notes=notes or AUTO_ABSENCE_NOTE,
     )
+
+    # Regra: 2 ausências no ciclo → interrompe o ciclo, sem criar novo ciclo agora.
+    total_absences = _count_total_absences(db, cycle.id)
+    if total_absences >= 2:
+        _interrupt_cycle(db, cycle, interrupted_at=scheduled_date)
+        db.commit()
+        return session_record
+
+    db.commit()
     return session_record
+
+def _get_last_presence_date(db: Session, user_id: int) -> Optional[date]:
+    """Retorna a última data (scheduled_for) de presença registrada para o usuário."""
+    from sqlalchemy import func
+    last_date = (
+        db.query(func.max(models.PassSession.scheduled_for))
+        .join(models.PassCycle, models.PassCycle.id == models.PassSession.cycle_id)
+        .filter(
+            models.PassCycle.user_id == user_id,
+            models.PassSession.status == schemas.PassSessionStatus.PRESENTE.value,
+        )
+        .scalar()
+    )
+    return last_date
+
+def _get_latest_cycle(db: Session, user_id: int) -> Optional[models.PassCycle]:
+    return (
+        db.query(models.PassCycle)
+        .filter(models.PassCycle.user_id == user_id)
+        .order_by(models.PassCycle.started_at.desc(), models.PassCycle.id.desc())
+        .first()
+    )

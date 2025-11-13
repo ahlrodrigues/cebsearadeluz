@@ -43,8 +43,14 @@ import { getUser, getUserQrData } from "../../api/users";
 
 const formatDate = (iso?: string | null) => {
   if (!iso) return "—";
+  const [y, m, d] = String(iso).split("-");
+  const year = Number(y);
+  const month = Number(m);
+  const day = Number(d);
+  if (!year || !month || !day) return iso;
+  // Usa Date local para evitar shift por UTC
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(
-    new Date(iso),
+    new Date(year, month - 1, day),
   );
 };
 
@@ -455,22 +461,20 @@ const UserPassesPage = () => {
                             {session.notes ?? "—"}
                           </TableCell>
                           <TableCell sx={{ whiteSpace: "nowrap", textAlign: "center" }}>
-                            {session.status === "Presente" && (
-                              <Button
-                                size="small"
-                                color="error"
-                                startIcon={<DeleteIcon />}
-                                onClick={async () => {
-                                  if (!confirm("Apagar este registro de presença?")) return;
-                                  try {
-                                    await deleteMutation.mutateAsync({ sessionId: session.id });
-                                  } catch {}
-                                }}
-                                disabled={deleteMutation.isPending}
-                              >
-                                Apagar
-                              </Button>
-                            )}
+                            <Button
+                              size="small"
+                              color="error"
+                              startIcon={<DeleteIcon />}
+                              onClick={async () => {
+                                if (!confirm("Apagar este registro?")) return;
+                                try {
+                                  await deleteMutation.mutateAsync({ sessionId: session.id });
+                                } catch {}
+                              }}
+                              disabled={deleteMutation.isPending}
+                            >
+                              Apagar
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))
@@ -578,6 +582,9 @@ const UserPassesPage = () => {
                               >
                                 Observações
                               </TableCell>
+                              <TableCell sx={{ whiteSpace: "nowrap", textAlign: "center", fontWeight: 600 }}>
+                                Ações
+                              </TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
@@ -622,6 +629,22 @@ const UserPassesPage = () => {
                                   }}
                                 >
                                   {session.notes ?? "—"}
+                                </TableCell>
+                                <TableCell sx={{ whiteSpace: "nowrap", textAlign: "center" }}>
+                                  <Button
+                                    size="small"
+                                    color="error"
+                                    startIcon={<DeleteIcon />}
+                                    onClick={async () => {
+                                      if (!confirm("Apagar este registro?")) return;
+                                      try {
+                                        await deleteMutation.mutateAsync({ sessionId: session.id });
+                                      } catch {}
+                                    }}
+                                    disabled={deleteMutation.isPending}
+                                  >
+                                    Apagar
+                                  </Button>
                                 </TableCell>
                               </TableRow>
                             ))}

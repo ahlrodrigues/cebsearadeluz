@@ -162,7 +162,7 @@ def delete_user(user_id: int, db: Session = Depends(get_db), _=Depends(require_r
 def get_exam_record(
     user_id: int,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(["exame","admin"])) if PROTECT_EXAM_ROUTES else None,
+    _=Depends(require_roles(["exame","admin","recepcao","entrevista"])) if PROTECT_EXAM_ROUTES else None,
 ):
     user = crud.get_user(db, user_id)
     if not user:
@@ -188,7 +188,7 @@ def create_exam_record(
     user_id: int,
     exam_in: schemas.ExamRecordCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(["exame","admin"])) if PROTECT_EXAM_ROUTES else None,
+    _=Depends(require_roles(["exame"])) if PROTECT_EXAM_ROUTES else None,
 ):
     user = crud.get_user(db, user_id)
     if not user:
@@ -211,7 +211,7 @@ def upsert_exam_record(
     user_id: int,
     exam_in: schemas.ExamRecordUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(["exame","admin"])) if PROTECT_EXAM_ROUTES else None,
+    _=Depends(require_roles(["exame"])) if PROTECT_EXAM_ROUTES else None,
 ):
     user = crud.get_user(db, user_id)
     if not user:

@@ -171,6 +171,7 @@ class PassType(str, Enum):
     CH = "CH"
     P4A = "P4A"
     P4B = "P4B"
+    ALTA = "ALTA"
 
 
 class PassSessionStatus(str, Enum):
@@ -267,6 +268,7 @@ class ExamRecommendation(str, Enum):
     TRABALHO = "trabalho"
     OTIMISMO = "otimismo"
     CONFIAR_EM_JESUS = "confiar_em_jesus"
+    SESSAO_DOUTRINARIA = "sessao_doutrinaria"
 
 
 class ExamRecordBase(BaseModel):

@@ -48,7 +48,7 @@ const App = () => {
           path="/users"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["admin","recepcao","entrevista","exame"]}>
+              <RoleRoute roles={["admin","recepcao","entrevista"]}>
                 <UserListPage />
               </RoleRoute>
             </PrivateRoute>
@@ -78,7 +78,7 @@ const App = () => {
           path="/users/:userId/passes"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["admin","recepcao","entrevista","exame"]}>
+              <RoleRoute roles={["admin","recepcao","entrevista"]}>
                 <UserPassesPage />
               </RoleRoute>
             </PrivateRoute>
@@ -88,7 +88,7 @@ const App = () => {
           path="/users/:userId/exam"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["admin","exame"]}>
+              <RoleRoute roles={["exame","admin","recepcao","entrevista"]}>
                 <UserExamPage />
               </RoleRoute>
             </PrivateRoute>

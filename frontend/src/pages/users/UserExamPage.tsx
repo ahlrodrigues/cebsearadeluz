@@ -18,6 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
 
 import { getUser } from "../../api/users";
+import { useAuth } from "../../auth/useAuth";
 import {
   getExamRecord,
   updateExamRecord,
@@ -91,6 +92,7 @@ const RECOMMENDATIONS: { value: ExamRecommendationValue; label: string }[] = [
   { value: "trabalho", label: "Trabalho" },
   { value: "otimismo", label: "Otimismo" },
   { value: "confiar_em_jesus", label: "Confiar em Jesus" },
+  { value: "sessao_doutrinaria", label: "Sessão doutrinária" },
 ];
 
 interface ExamFormState {
@@ -111,6 +113,8 @@ const UserExamPage = () => {
   const isValidId = Number.isInteger(userId) && userId > 0;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { session } = useAuth();
+  const canEdit = session?.role === "exame";
 
   const [snackbar, setSnackbar] = useState<{
     message: string;
@@ -194,6 +198,7 @@ const UserExamPage = () => {
   };
 
   const handleSubmit = async () => {
+    if (!canEdit) return;
     await updateMutation.mutateAsync({
       userId,
       payload: {
@@ -261,18 +266,11 @@ const UserExamPage = () => {
             <Button variant="outlined" onClick={handlePrint}>
               Imprimir ficha
             </Button>
-            <Button
-              variant="contained"
-              disableElevation
-              onClick={handleSubmit}
-              disabled={updateMutation.isPending}
-            >
-              {updateMutation.isPending ? "Salvando..." : "Salvar"}
-            </Button>
+            {/* Salvar movido para o canto inferior do card */}
           </Stack>
         </Stack>
 
-        <Paper sx={{ p: { xs: 2, md: 4 } }}>
+        <Paper sx={{ p: { xs: 2, md: 4 }, position: "relative" }}>
           <Stack spacing={3}>
             <Box>
               <Typography>ID: {user.id}</Typography>
@@ -288,6 +286,7 @@ const UserExamPage = () => {
               multiline
               minRows={6}
               placeholder="Descreva aqui as orientações coletadas no exame espiritual."
+              disabled={!canEdit}
             />
 
             <TextField
@@ -297,6 +296,7 @@ const UserExamPage = () => {
               multiline
               minRows={4}
               placeholder="Observações dos entrevistadores."
+              disabled={!canEdit}
             />
 
             <Box>
@@ -311,6 +311,7 @@ const UserExamPage = () => {
                       <Checkbox
                         checked={formState.recommendations.has(item.value)}
                         onChange={() => handleToggleRecommendation(item.value)}
+                        disabled={!canEdit}
                       />
                     }
                     label={item.label}
@@ -329,6 +330,18 @@ const UserExamPage = () => {
               </Typography>
             )}
           </Stack>
+          {canEdit && (
+            <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
+              <Button
+                variant="contained"
+                disableElevation
+                onClick={handleSubmit}
+                disabled={updateMutation.isPending}
+              >
+                {updateMutation.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </Stack>
+          )}
         </Paper>
       </Stack>
 

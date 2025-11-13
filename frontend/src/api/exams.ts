@@ -8,7 +8,8 @@ export type ExamRecommendationValue =
   | "eae"
   | "trabalho"
   | "otimismo"
-  | "confiar_em_jesus";
+  | "confiar_em_jesus"
+  | "sessao_doutrinaria";
 
 export interface ExamRecordResponse {
   id: number;

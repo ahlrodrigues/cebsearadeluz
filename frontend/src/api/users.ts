@@ -2,7 +2,7 @@ import { http } from "./http";
 import type { PassType } from "./passes";
 
 export type UserStatus = "Ativo" | "Desativado";
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "recepcao" | "entrevista" | "exame" | "admin";
 export type AssistanceDay =
   | "Segunda-feira"
   | "Terça-feira"

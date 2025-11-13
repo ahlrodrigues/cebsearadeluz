@@ -54,6 +54,9 @@ const statusFilterOptions: Array<{ value: "all" | UserStatus; label: string }> =
 const roleFilterOptions: Array<{ value: "all" | UserRole; label: string }> = [
   { value: "all", label: "Todos" },
   { value: "user", label: "Assistido" },
+  { value: "recepcao", label: "Recepção" },
+  { value: "entrevista", label: "Entrevista" },
+  { value: "exame", label: "Exame" },
   { value: "admin", label: "Administrador" },
 ];
 

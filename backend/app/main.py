@@ -188,7 +188,7 @@ def create_exam_record(
     user_id: int,
     exam_in: schemas.ExamRecordCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(["exame"])) if PROTECT_EXAM_ROUTES else None,
+    _=Depends(require_roles(["exame","admin"])) if PROTECT_EXAM_ROUTES else None,
 ):
     user = crud.get_user(db, user_id)
     if not user:
@@ -211,7 +211,7 @@ def upsert_exam_record(
     user_id: int,
     exam_in: schemas.ExamRecordUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(["exame"])) if PROTECT_EXAM_ROUTES else None,
+    _=Depends(require_roles(["exame","admin"])) if PROTECT_EXAM_ROUTES else None,
 ):
     user = crud.get_user(db, user_id)
     if not user:
@@ -1073,6 +1073,50 @@ def exams_queue(db: Session = Depends(get_db), _=Depends(require_roles(["entrevi
             "scheduled_for": c.interview_scheduled_for,
         })
     return items
+
+
+@app.get("/exams/today", response_model=list[schemas.ExamQueueItem])
+def exams_today(db: Session = Depends(get_db), _=Depends(require_roles(["entrevista","recepcao","admin"]))):
+    # Users with presence today and pending interview (most recent concluded cycle requiring interview)
+    from sqlalchemy import func
+    today = date.today()
+    present_user_ids = (
+        db.query(models.PassCycle.user_id)
+        .join(models.PassSession, models.PassSession.cycle_id == models.PassCycle.id)
+        .filter(
+            models.PassSession.scheduled_for == today,
+            models.PassSession.status == schemas.PassSessionStatus.PRESENTE.value,
+        )
+        .distinct()
+        .all()
+    )
+    result: list[dict] = []
+    for (uid,) in present_user_ids:
+        # latest concluded cycle requiring interview and not completed
+        c = (
+            db.query(models.PassCycle)
+            .filter(
+                models.PassCycle.user_id == uid,
+                models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
+                models.PassCycle.requires_interview == True,
+                models.PassCycle.interview_completed_at.is_(None),
+            )
+            .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
+            .first()
+        )
+        if not c:
+            continue
+        u = db.query(models.User).filter(models.User.id == uid).first()
+        if not u:
+            continue
+        result.append({
+            "user_id": u.id,
+            "name": (u.social_name or u.full_name),
+            "cycle_id": c.id,
+            "pass_type": c.pass_type,
+            "scheduled_for": c.interview_scheduled_for,
+        })
+    return result
 
 
 @app.put("/exams/{user_id}/schedule", response_model=schemas.PassCycle)

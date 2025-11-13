@@ -25,3 +25,8 @@ export const completeExam = async (userId: number) => {
   const { data } = await http.post(`/exams/${userId}/complete`)
   return data
 }
+
+export const fetchExamToday = async (): Promise<ExamQueueItem[]> => {
+  const { data } = await http.get<ExamQueueItem[]>(`/exams/today`)
+  return data
+}

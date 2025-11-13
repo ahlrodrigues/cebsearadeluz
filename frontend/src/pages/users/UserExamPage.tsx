@@ -114,7 +114,7 @@ const UserExamPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { session } = useAuth();
-  const canEdit = session?.role === "exame";
+  const canEdit = session?.role === "exame" || session?.role === "admin";
 
   const [snackbar, setSnackbar] = useState<{
     message: string;

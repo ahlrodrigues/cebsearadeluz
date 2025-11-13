@@ -32,7 +32,7 @@ export type UserFormMode = 'create' | 'edit'
 // UserFormValues is defined in ./types to keep a single source of truth
 
 const statusOptions: Array<UserStatus> = ['Ativo', 'Desativado']
-const roleOptions: Array<UserRole> = ['user', 'admin']
+const roleOptions: Array<UserRole> = ['user', 'recepcao', 'entrevista', 'exame', 'admin']
 const assistanceDayOptions = [
   '',
   'Segunda-feira',
@@ -433,7 +433,15 @@ const UserForm = ({
             >
               {roleOptions.map((option) => (
                 <MenuItem key={option} value={option}>
-                  {option === 'user' ? 'Assistido' : 'Administrador'}
+                  {option === 'user'
+                    ? 'Assistido'
+                    : option === 'recepcao'
+                    ? 'Recepção'
+                    : option === 'entrevista'
+                    ? 'Entrevista'
+                    : option === 'exame'
+                    ? 'Exame'
+                    : 'Administrador'}
                 </MenuItem>
               ))}
             </TextField>

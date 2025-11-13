@@ -36,6 +36,7 @@ const App = () => {
     <Routes>
       <Route element={<AppLayout />}>
         <Route index element={<HomeRedirect />} />
+        <Route path="/reports" element={<Navigate to="/reports/scans" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

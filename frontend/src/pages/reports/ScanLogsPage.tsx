@@ -31,7 +31,7 @@ const ScanLogsPage = () => {
         fetchScanLogs(date),
         date ? fetchScanLogsSummary(date) : Promise.resolve(null),
       ])
-      setLogs(data)
+      setLogs(Array.isArray(data) ? data : [])
       setSummary(sum as ScanLogsSummary | null)
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -51,7 +51,7 @@ const ScanLogsPage = () => {
     try {
       setQueueError(null)
       const items = await fetchExamQueue()
-      setQueue(items)
+      setQueue(Array.isArray(items) ? items : [])
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       const message = (e as Error)?.message || 'Erro'
@@ -63,7 +63,7 @@ const ScanLogsPage = () => {
     try {
       setCompletedError(null)
       const items = await fetchCompletedInterviews()
-      setCompleted(items)
+      setCompleted(Array.isArray(items) ? items : [])
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       const message = (e as Error)?.message || 'Erro'

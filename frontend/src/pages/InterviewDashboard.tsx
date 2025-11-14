@@ -14,7 +14,7 @@ const InterviewDashboard = () => {
     try {
       setError(null)
       const data = await fetchCompletedInterviews(search.trim() || undefined)
-      setItems(data)
+      setItems(Array.isArray(data) ? data : [])
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       const message = (e as Error)?.message
@@ -31,7 +31,7 @@ const InterviewDashboard = () => {
     try {
       setErrorQueue(null)
       const data = await fetchExamToday()
-      setTodayQueue(data)
+      setTodayQueue(Array.isArray(data) ? data : [])
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       const message = (e as Error)?.message

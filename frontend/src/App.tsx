@@ -22,6 +22,8 @@ import ResetPassword from './pages/ResetPassword'
 import ConfirmAccount from './pages/ConfirmAccount'
 import ForbiddenPage from './pages/ForbiddenPage'
 import InterviewDashboard from './pages/InterviewDashboard'
+import ExamsPage from './pages/ExamsPage'
+import ExamsTodayPage from './pages/ExamsTodayPage'
 import { PrivateRoute, RoleRoute } from './auth/RouteGuards'
 import InstallPage from './pages/InstallPage'
 
@@ -88,7 +90,7 @@ const App = () => {
           path="/users/:userId/exam"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["exame","admin","recepcao","entrevista"]}>
+              <RoleRoute roles={["exame","admin"]}>
                 <UserExamPage />
               </RoleRoute>
             </PrivateRoute>
@@ -161,6 +163,26 @@ const App = () => {
             <PrivateRoute>
               <RoleRoute roles={["user"]}>
                 <EditMyProfile />
+              </RoleRoute>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/exams"
+          element={
+            <PrivateRoute>
+              <RoleRoute roles={["exame"]}>
+                <ExamsPage />
+              </RoleRoute>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/exams/today"
+          element={
+            <PrivateRoute>
+              <RoleRoute roles={["exame"]}>
+                <ExamsTodayPage />
               </RoleRoute>
             </PrivateRoute>
           }

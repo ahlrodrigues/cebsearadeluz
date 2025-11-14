@@ -4,6 +4,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment'
 import { Outlet, Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth'
 import InstallPwaButton from '../InstallPwaButton'
+import ScienceIcon from '@mui/icons-material/Science'
 
 const AppLayout = () => {
   const location = useLocation()
@@ -121,6 +122,18 @@ const AppLayout = () => {
 
             {(session?.role === 'entrevista' || session?.role === 'admin') && (
               <Button size="small" component={RouterLink} to="/interviews" color="inherit">Entrevistas</Button>
+            )}
+
+            {session?.role === 'exame' && (
+              <Button
+                size="small"
+                component={RouterLink}
+                to="/exams"
+                color="inherit"
+                startIcon={<ScienceIcon />}
+              >
+                Exames
+              </Button>
             )}
 
             {session && (

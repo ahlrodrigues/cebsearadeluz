@@ -1049,7 +1049,7 @@ def interviews_completed(
 
 
 @app.get("/exams/queue", response_model=list[schemas.ExamQueueItem])
-def exams_queue(db: Session = Depends(get_db), _=Depends(require_roles(["entrevista","recepcao","admin"]))):
+def exams_queue(db: Session = Depends(get_db), _=Depends(require_roles(["entrevista","recepcao","exame","admin"]))):
     # Latest concluded cycles that require interview and not yet completed
     from sqlalchemy.orm import joinedload
     q = (
@@ -1076,7 +1076,7 @@ def exams_queue(db: Session = Depends(get_db), _=Depends(require_roles(["entrevi
 
 
 @app.get("/exams/today", response_model=list[schemas.ExamQueueItem])
-def exams_today(db: Session = Depends(get_db), _=Depends(require_roles(["entrevista","recepcao","admin"]))):
+def exams_today(db: Session = Depends(get_db), _=Depends(require_roles(["entrevista","recepcao","exame","admin"]))):
     # Users with presence today and pending interview (most recent concluded cycle requiring interview)
     from sqlalchemy import func
     today = date.today()

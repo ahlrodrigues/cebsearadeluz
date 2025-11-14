@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
@@ -26,6 +26,7 @@ import {
   type ExamRecommendationValue,
   type ExamRecordUpdatePayload,
 } from "../../api/exams";
+import { fetchPassCycles, type PassCycle } from "../../api/passes";
 
 
 const formatAge = (birthDate?: string | null): string => {
@@ -107,6 +108,13 @@ const initializeState = (exam: ExamRecordResponse | null): ExamFormState => ({
   recommendations: new Set(exam?.recommendations ?? []),
 });
 
+const formatDate = (iso?: string | null): string => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(d);
+};
+
 const UserExamPage = () => {
   const params = useParams<{ userId: string }>();
   const userId = Number(params.userId);
@@ -132,6 +140,13 @@ const UserExamPage = () => {
     enabled: isValidId,
     queryKey: ["user", userId, "exam"],
     queryFn: () => getExamRecord(userId),
+  });
+
+  const passCyclesQuery = useQuery({
+    enabled: isValidId,
+    queryKey: ["user", userId, "pass-cycles"],
+    queryFn: () => fetchPassCycles(userId),
+    staleTime: 60_000,
   });
 
   const [formState, setFormState] = useState<ExamFormState>(() =>
@@ -172,8 +187,9 @@ const UserExamPage = () => {
     },
   });
 
-  const isLoading = userQuery.isLoading || examQuery.isLoading;
-  const isError = userQuery.isError;
+  const isLoading =
+    userQuery.isLoading || examQuery.isLoading || passCyclesQuery.isLoading;
+  const isError = userQuery.isError || passCyclesQuery.isError;
 
   const handleChange =
     (field: keyof ExamFormState) =>
@@ -215,6 +231,31 @@ const UserExamPage = () => {
 
   const user = userQuery.data;
   const exam = examQuery.data;
+  const cycles: PassCycle[] = passCyclesQuery.data ?? [];
+
+  const examHistory = useMemo(() => {
+    const entries = cycles
+      .filter((c) => c.status === "Concluído")
+      .map((c) => {
+        const date =
+          c.interview_completed_at ??
+          c.interview_scheduled_for ??
+          c.completed_at ??
+          c.started_at;
+        return {
+          id: c.id,
+          passType: c.pass_type,
+          date,
+        };
+      })
+      .filter((item) => item.date);
+
+    return entries.sort((a, b) => {
+      const da = new Date(a.date as string).getTime() || 0;
+      const db = new Date(b.date as string).getTime() || 0;
+      return db - da;
+    });
+  }, [cycles]);
 
   if (!isValidId) {
     return <Navigate to="/users" replace />;
@@ -230,11 +271,13 @@ const UserExamPage = () => {
   }
 
   if (isError || !user) {
-    const detail = (
-      (userQuery.error as AxiosError | undefined)?.response?.data as
+    const detail =
+      ((userQuery.error as AxiosError | undefined)?.response?.data as
         | { detail?: string }
-        | undefined
-    )?.detail;
+        | undefined)?.detail ||
+      ((passCyclesQuery.error as AxiosError | undefined)?.response?.data as
+        | { detail?: string }
+        | undefined)?.detail;
     return (
       <Alert severity="error">
         {detail || "Não foi possível carregar o assistido."}
@@ -272,6 +315,25 @@ const UserExamPage = () => {
 
         <Paper sx={{ p: { xs: 2, md: 4 }, position: "relative" }}>
           <Stack spacing={3}>
+            <Box>
+              <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                Exames do assistido
+              </Typography>
+              {examHistory.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  Nenhum exame registrado para este assistido.
+                </Typography>
+              ) : (
+                <Stack spacing={0.5}>
+                  {examHistory.map((item) => (
+                    <Typography key={item.id} variant="body2">
+                      {formatDate(item.date)} — {item.passType}
+                    </Typography>
+                  ))}
+                </Stack>
+              )}
+            </Box>
+
             <Box>
               <Typography>ID: {user.id}</Typography>
               <Typography>Nome: {user.social_name || user.full_name}</Typography>

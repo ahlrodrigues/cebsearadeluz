@@ -16,6 +16,7 @@ export const DEFAULT_VALUES: UserFormValues = {
   social_network: '',
   status: 'Ativo',
   role: 'user',
+  extra_roles: [],
   assistance_day: '',
   digital_login_enabled: true,
   password: '',

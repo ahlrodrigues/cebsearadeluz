@@ -1,4 +1,5 @@
 import { http } from './http'
+import type { AssistanceDay } from './users'
 
 export interface ExamQueueItem {
   user_id: number
@@ -6,23 +7,12 @@ export interface ExamQueueItem {
   cycle_id: number
   pass_type?: string | null
   scheduled_for?: string | null
+  exam_completed?: boolean
+   assistance_day?: AssistanceDay | null
 }
 
 export const fetchExamQueue = async (): Promise<ExamQueueItem[]> => {
   const { data } = await http.get<ExamQueueItem[]>(`/exams/queue`)
-  return data
-}
-
-export const scheduleExam = async (
-  userId: number,
-  date: string,
-) => {
-  const { data } = await http.put(`/exams/${userId}/schedule`, { date })
-  return data
-}
-
-export const completeExam = async (userId: number) => {
-  const { data } = await http.post(`/exams/${userId}/complete`)
   return data
 }
 

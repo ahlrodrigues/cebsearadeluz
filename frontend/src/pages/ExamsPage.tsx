@@ -1,22 +1,25 @@
 import { useEffect, useState } from 'react'
-import { Alert, Box, Button, Container, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
-import { fetchExamQueue, scheduleExam, completeExam, type ExamQueueItem } from '../api/exam_ops'
+import { Alert, Box, Button, Chip, Container, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { fetchExamQueue, type ExamQueueItem } from '../api/exam_ops'
+import type { AssistanceDay } from '../api/users'
 import { Link as RouterLink } from 'react-router-dom'
-
-const todayISO = () => {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
 
 const ExamsPage = () => {
   const [items, setItems] = useState<ExamQueueItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [dates, setDates] = useState<Record<number, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
+  const [selectedDay, setSelectedDay] = useState<AssistanceDay | 'all'>('all')
+
+  const assistanceDays: AssistanceDay[] = [
+    'Segunda-feira',
+    'Terça-feira',
+    'Quarta-feira',
+    'Quinta-feira',
+    'Sexta-feira',
+    'Sábado',
+    'Domingo',
+  ]
 
   const load = async () => {
     setLoading(true)
@@ -24,12 +27,6 @@ const ExamsPage = () => {
     try {
       const data = await fetchExamQueue()
       setItems(Array.isArray(data) ? data : [])
-      // initialize date inputs using scheduled date or today
-      const initial: Record<number, string> = {}
-      for (const it of data) {
-        initial[it.user_id] = (it.scheduled_for ?? todayISO())
-      }
-      setDates(initial)
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       const message = (e as Error)?.message || 'Erro'
@@ -41,32 +38,19 @@ const ExamsPage = () => {
 
   useEffect(() => {
     load()
+
+    const intervalId = window.setInterval(() => {
+      load()
+    }, 5 * 60 * 1000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
   }, [])
 
-  const handleSchedule = async (userId: number) => {
-    setActionError(null)
-    try {
-      const when = dates[userId] || todayISO()
-      await scheduleExam(userId, when)
-      await load()
-    } catch (e: unknown) {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      const message = (e as Error)?.message || 'Erro ao agendar'
-      setActionError(String(detail || message))
-    }
-  }
-
-  const handleComplete = async (userId: number) => {
-    setActionError(null)
-    try {
-      await completeExam(userId)
-      await load()
-    } catch (e: unknown) {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      const message = (e as Error)?.message || 'Erro ao concluir exame'
-      setActionError(String(detail || message))
-    }
-  }
+  const filteredItems = selectedDay === 'all'
+    ? items
+    : items.filter((it) => it.assistance_day === selectedDay)
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -76,9 +60,24 @@ const ExamsPage = () => {
           <Typography color="text.secondary">
             Lista de assistidos que concluíram o ciclo com sucesso (4 presenças e no máximo 2 ausências) e aguardam entrevista/exame.
           </Typography>
-          <Box display="flex" gap={1}>
+          <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
             <Button variant="outlined" onClick={load} disabled={loading}>Atualizar</Button>
             <Button variant="outlined" onClick={() => window.print()}>Imprimir</Button>
+            <TextField
+              select
+              size="small"
+              label="Dia de assistência"
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value as AssistanceDay | 'all')}
+              sx={{ minWidth: 200, ml: { xs: 0, sm: 'auto' } }}
+            >
+              <MenuItem value="all">Todos</MenuItem>
+              {assistanceDays.map((day) => (
+                <MenuItem key={day} value={day}>
+                  {day}
+                </MenuItem>
+              ))}
+            </TextField>
           </Box>
           {error && <Alert severity="error">{error}</Alert>}
           {actionError && <Alert severity="warning">{actionError}</Alert>}
@@ -88,36 +87,32 @@ const ExamsPage = () => {
               <TableRow>
                 <TableCell>Nome</TableCell>
                 <TableCell>Tipo</TableCell>
-                <TableCell>Agendado para</TableCell>
+                <TableCell>Dia de assistência</TableCell>
+                <TableCell>Status</TableCell>
                 <TableCell>Ações</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {items.map((it) => (
+              {filteredItems.map((it) => (
                 <TableRow key={`${it.user_id}:${it.cycle_id}`}>
                   <TableCell>{it.name}</TableCell>
                   <TableCell>{it.pass_type ?? ''}</TableCell>
+                  <TableCell>{it.assistance_day ?? '—'}</TableCell>
                   <TableCell>
-                    <TextField
-                      size="small"
-                      type="date"
-                      value={dates[it.user_id] ?? todayISO()}
-                      onChange={(e) => setDates((d) => ({ ...d, [it.user_id]: e.target.value }))}
-                      InputLabelProps={{ shrink: true }}
-                    />
+                    {it.exam_completed
+                      ? <Chip size="small" color="success" label="Concluído" />
+                      : <Chip size="small" color="warning" label="Pendente" />}
                   </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={1}>
-                      <Button size="small" variant="outlined" onClick={() => handleSchedule(it.user_id)}>Agendar</Button>
-                      <Button size="small" variant="contained" onClick={() => handleComplete(it.user_id)}>Concluir</Button>
                       <Button size="small" component={RouterLink} to={`/users/${it.user_id}/exam`}>Ficha</Button>
                     </Stack>
                   </TableCell>
                 </TableRow>
               ))}
-              {items.length === 0 && (
+              {filteredItems.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4}>
+                  <TableCell colSpan={5}>
                     <Typography color="text.secondary">Nenhum cadastro pendente de exame.</Typography>
                   </TableCell>
                 </TableRow>

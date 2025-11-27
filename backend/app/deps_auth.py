@@ -14,7 +14,17 @@ def get_current_user_token(token: str = Depends(oauth2_scheme)):
 
 def require_roles(roles: List[str]):
     def _inner(payload = Depends(get_current_user_token)):
-        if getattr(payload, 'role', None) not in roles:
+        # Suporte a múltiplos perfis no token (payload.roles)
+        user_roles: List[str] = []
+        primary = getattr(payload, "role", None)
+        if primary:
+            user_roles.append(primary)
+        extra = getattr(payload, "roles", None)
+        if isinstance(extra, list):
+            for r in extra:
+                if r and r not in user_roles:
+                    user_roles.append(r)
+        if not any(r in roles for r in user_roles):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return payload
     return _inner

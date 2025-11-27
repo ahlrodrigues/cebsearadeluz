@@ -1,7 +1,7 @@
 # backend/app/auth_tokens.py
 import os, time
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from jose import jwt, JWTError
 from pydantic import BaseModel
 
@@ -14,7 +14,8 @@ CONFIRM_TOKEN_EXPIRE_DAYS = int(os.getenv("CONFIRM_TOKEN_EXPIRE_DAYS", "3"))
 
 class TokenPayload(BaseModel):
     sub: str        # user id
-    role: str       # "user" | "admin"
+    role: str       # primary role (backward-compat)
+    roles: Optional[List[str]] = None  # all roles granted
     type: str       # "access" | "refresh"
     exp: int
     iat: int
@@ -25,14 +26,26 @@ def _exp(minutes: int = None, days: int = None) -> int:
     if days is not None:    return int((now + timedelta(days=days)).timestamp())
     return int((now + timedelta(minutes=15)).timestamp())
 
-def create_access_token(sub: str, role: str) -> str:
-    payload = {"sub": sub, "role": role, "type": "access",
-               "exp": _exp(minutes=ACCESS_TOKEN_EXPIRE_MINUTES), "iat": int(time.time())}
+def create_access_token(sub: str, role: str, roles: Optional[list[str]] = None) -> str:
+    payload = {
+        "sub": sub,
+        "role": role,
+        "roles": roles or [role],
+        "type": "access",
+        "exp": _exp(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "iat": int(time.time()),
+    }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-def create_refresh_token(sub: str, role: str) -> str:
-    payload = {"sub": sub, "role": role, "type": "refresh",
-               "exp": _exp(days=REFRESH_TOKEN_EXPIRE_DAYS), "iat": int(time.time())}
+def create_refresh_token(sub: str, role: str, roles: Optional[list[str]] = None) -> str:
+    payload = {
+        "sub": sub,
+        "role": role,
+        "roles": roles or [role],
+        "type": "refresh",
+        "exp": _exp(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        "iat": int(time.time()),
+    }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 def create_reset_token(sub: str) -> str:
@@ -60,6 +73,7 @@ def create_qr_token(sub: str, role: str = "user") -> str:
     payload = {
         "sub": sub,
         "role": role,
+        "roles": [role],
         "type": "qr",
         "exp": _exp(days=days),
         "iat": int(time.time()),

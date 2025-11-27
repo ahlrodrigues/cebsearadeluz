@@ -47,6 +47,8 @@ class UserBase(BaseModel):
     social_network: Optional[str] = Field(None, max_length=255)
     status: UserStatus = Field(default=UserStatus.ATIVO)
     role: UserRole = Field(default=UserRole.USER)
+    # Perfis adicionais (ex.: ["entrevista","exame"])
+    extra_roles: list[UserRole] = Field(default_factory=list)
     assistance_day: Optional[AssistanceDay] = Field(default=None)
     # Controle por usuário do login digital (WebAuthn)
     digital_login_enabled: bool = Field(default=True)
@@ -85,6 +87,7 @@ class UserUpdate(BaseModel):
     social_network: Optional[str] = Field(None, max_length=255)
     status: Optional[UserStatus] = None
     role: Optional[UserRole] = None
+    extra_roles: Optional[list[UserRole]] = None
     password: Optional[str] = Field(None, min_length=8, max_length=128)
     assistance_day: Optional[AssistanceDay] = None
     digital_login_enabled: Optional[bool] = None
@@ -276,6 +279,7 @@ class ExamRecordBase(BaseModel):
     observations: Optional[str] = None
     recommendations: list[ExamRecommendation] = Field(default_factory=list)
     next_pass_type: Optional[PassType] = None
+    completed: bool = False
 
 
 class ExamRecordCreate(ExamRecordBase):
@@ -287,6 +291,7 @@ class ExamRecordUpdate(BaseModel):
     observations: Optional[str] = None
     recommendations: Optional[list[ExamRecommendation]] = None
     next_pass_type: Optional[PassType] = None
+    completed: Optional[bool] = None
 
 
 class ExamRecord(ExamRecordBase):
@@ -308,3 +313,5 @@ class ExamQueueItem(BaseModel):
     cycle_id: int
     pass_type: Optional[str] = None
     scheduled_for: Optional[dt.date] = None
+    exam_completed: bool = False
+    assistance_day: Optional[AssistanceDay] = None

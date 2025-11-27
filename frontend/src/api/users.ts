@@ -29,6 +29,7 @@ export interface CreateUserPayload {
   social_network?: string;
   status: UserStatus;
   role: UserRole;
+  extra_roles?: UserRole[];
   assistance_day?: AssistanceDay;
   digital_login_enabled?: boolean;
 }
@@ -50,6 +51,7 @@ export interface UserResponse {
   social_network?: string | null;
   status: UserStatus;
   role: UserRole;
+  extra_roles?: UserRole[] | null;
   assistance_day?: AssistanceDay | null;
   digital_login_enabled: boolean;
   created_at: string;
@@ -131,6 +133,10 @@ const cleanPayload = (payload: CreateUserPayload): CreateUserPayload => {
   assign("phone", payload.phone);
   assign("email", payload.email);
   assign("social_network", payload.social_network);
+
+  if (Array.isArray(payload.extra_roles) && payload.extra_roles.length > 0) {
+    result.extra_roles = payload.extra_roles;
+  }
 
   if (payload.assistance_day) {
     result.assistance_day = payload.assistance_day;
@@ -249,6 +255,10 @@ const cleanUpdatePayload = (payload: UpdateUserPayload): UpdateUserPayload => {
   assign("password", payload.password);
   if (typeof payload.digital_login_enabled === 'boolean') {
     result.digital_login_enabled = payload.digital_login_enabled;
+  }
+
+  if (Array.isArray(payload.extra_roles)) {
+    result.extra_roles = payload.extra_roles;
   }
 
   if ("assistance_day" in payload) {

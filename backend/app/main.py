@@ -1,5 +1,5 @@
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -56,8 +56,45 @@ def _ensure_user_digital_login_column():
         pass
 
 
+def _ensure_user_extra_roles_column():
+    """Add users.extra_roles if missing (SQLite-safe)."""
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            cols = conn.execute(text("PRAGMA table_info(users)"))
+            names = {row[1] for row in cols}
+            if "extra_roles" not in names:
+                conn.execute(text("ALTER TABLE users ADD COLUMN extra_roles VARCHAR(255) NULL"))
+                conn.commit()
+    except Exception:
+        # Best-effort; avoid breaking startup in environments without migration support
+        pass
+
+
+def _ensure_exam_completed_column():
+    """Add exam_records.completed if missing (SQLite-safe)."""
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            cols = conn.execute(text("PRAGMA table_info(exam_records)"))
+            names = {row[1] for row in cols}
+            if "completed" not in names:
+                conn.execute(
+                    text(
+                        "ALTER TABLE exam_records "
+                        "ADD COLUMN completed BOOLEAN NOT NULL DEFAULT 0"
+                    )
+                )
+                conn.commit()
+    except Exception:
+        # Best-effort; avoid breaking startup in environments without migration support
+        pass
+
+
 # Best-effort schema tweaks
 _ensure_user_digital_login_column()
+_ensure_user_extra_roles_column()
+_ensure_exam_completed_column()
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -218,11 +255,16 @@ def upsert_exam_record(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuário não encontrado.",
-        )
+    )
     exam = crud.get_exam_record(db, user_id)
     if exam is None:
-        create_payload = schemas.ExamRecordCreate(**exam_in.model_dump(exclude_unset=True))
+        data = exam_in.model_dump(exclude_unset=True)
+        if "completed" not in data:
+            data["completed"] = True
+        create_payload = schemas.ExamRecordCreate(**data)
         return crud.create_exam_record(db, user_id, create_payload)
+    if exam_in.completed is None:
+        exam_in.completed = True
     return crud.update_exam_record(db, exam, exam_in)
 
 
@@ -1063,14 +1105,26 @@ def exams_queue(db: Session = Depends(get_db), _=Depends(require_roles(["entrevi
         .order_by(models.PassCycle.completed_at.desc())
     )
     items: list[dict] = []
+    now = datetime.now(timezone.utc)
     for c in q.all():
         u = c.user
+        exam = crud.get_exam_record(db, u.id)
+        # Se já concluído, manter na lista apenas por até 24h após a última atualização
+        if exam and getattr(exam, "completed", False):
+            completed_at = getattr(exam, "updated_at", None) or getattr(exam, "created_at", None)
+            if completed_at is not None:
+                if completed_at.tzinfo is None:
+                    completed_at = completed_at.replace(tzinfo=timezone.utc)
+                if now - completed_at > timedelta(hours=24):
+                    continue
         items.append({
             "user_id": u.id,
             "name": (u.social_name or u.full_name),
             "cycle_id": c.id,
             "pass_type": c.pass_type,
             "scheduled_for": c.interview_scheduled_for,
+            "exam_completed": bool(getattr(exam, "completed", False)),
+            "assistance_day": getattr(u, "assistance_day", None),
         })
     return items
 
@@ -1091,6 +1145,7 @@ def exams_today(db: Session = Depends(get_db), _=Depends(require_roles(["entrevi
         .all()
     )
     result: list[dict] = []
+    now = datetime.now(timezone.utc)
     for (uid,) in present_user_ids:
         # latest concluded cycle requiring interview and not completed
         c = (
@@ -1109,61 +1164,25 @@ def exams_today(db: Session = Depends(get_db), _=Depends(require_roles(["entrevi
         u = db.query(models.User).filter(models.User.id == uid).first()
         if not u:
             continue
+        exam = crud.get_exam_record(db, u.id)
+        # Se já concluído, manter na lista apenas por até 24h após a última atualização
+        if exam and getattr(exam, "completed", False):
+            completed_at = getattr(exam, "updated_at", None) or getattr(exam, "created_at", None)
+            if completed_at is not None:
+                if completed_at.tzinfo is None:
+                    completed_at = completed_at.replace(tzinfo=timezone.utc)
+                if now - completed_at > timedelta(hours=24):
+                    continue
         result.append({
             "user_id": u.id,
             "name": (u.social_name or u.full_name),
             "cycle_id": c.id,
             "pass_type": c.pass_type,
             "scheduled_for": c.interview_scheduled_for,
+            "exam_completed": bool(getattr(exam, "completed", False)),
+            "assistance_day": getattr(u, "assistance_day", None),
         })
     return result
-
-
-@app.put("/exams/{user_id}/schedule", response_model=schemas.PassCycle)
-def exams_schedule(user_id: int, payload: schemas.ExamScheduleRequest, db: Session = Depends(get_db), _=Depends(require_roles(["exame","admin"]))):
-    # Set interview_scheduled_for on the most recent concluded cycle requiring interview
-    c = (
-        db.query(models.PassCycle)
-        .filter(
-            models.PassCycle.user_id == user_id,
-            models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
-            models.PassCycle.requires_interview == True,
-        )
-        .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
-        .first()
-    )
-    if not c:
-        raise HTTPException(status_code=404, detail="Nenhum ciclo elegível para agendamento.")
-    c.interview_scheduled_for = payload.date
-    db.add(c)
-    db.commit()
-    db.refresh(c)
-    return c
-
-
-@app.post("/exams/{user_id}/complete", response_model=schemas.PassCycle)
-def exams_complete(user_id: int, db: Session = Depends(get_db), _=Depends(require_roles(["exame","admin"]))):
-    # Mark interview as completed now
-    c = (
-        db.query(models.PassCycle)
-        .filter(
-            models.PassCycle.user_id == user_id,
-            models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
-            models.PassCycle.requires_interview == True,
-            models.PassCycle.interview_completed_at.is_(None),
-        )
-        .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
-        .first()
-    )
-    if not c:
-        raise HTTPException(status_code=404, detail="Nenhum ciclo pendente de entrevista.")
-    from datetime import datetime, timezone
-    c.interview_completed_at = datetime.now(timezone.utc)
-    db.add(c)
-    db.commit()
-    db.refresh(c)
-
-    return c
 
 
 @app.post(

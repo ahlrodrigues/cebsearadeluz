@@ -121,6 +121,21 @@ const UserForm = ({
     }
   }
 
+  const handleToggleExtraRole = (role: UserRole) => (event: ChangeEvent<HTMLInputElement>) => {
+    const checked = event.target.checked
+    setValues((current) => {
+      const currentExtras = new Set(current.extra_roles)
+      if (checked) {
+        currentExtras.add(role)
+      } else {
+        currentExtras.delete(role)
+      }
+      // Evitar duplicar o papel principal em extra_roles
+      currentExtras.delete(current.role)
+      return { ...current, extra_roles: Array.from(currentExtras) }
+    })
+  }
+
   const handleCepLookup = async () => {
     const sanitized = values.cep.replace(/\D/g, '')
     if (sanitized.length === 0) {
@@ -424,7 +439,7 @@ const UserForm = ({
             </TextField>
 
             <TextField
-              label="Perfil"
+              label="Perfil principal"
               select
               value={values.role}
               onChange={handleChange('role')}
@@ -445,6 +460,37 @@ const UserForm = ({
                 </MenuItem>
               ))}
             </TextField>
+
+            <Box sx={{ gridColumn: fullRow }}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Perfis adicionais
+              </Typography>
+              <Stack direction="row" flexWrap="wrap" spacing={1}>
+                {roleOptions
+                  .filter((r) => r !== 'user')
+                  .map((option) => (
+                    <FormControlLabel
+                      key={option}
+                      control={
+                        <Switch
+                          checked={values.extra_roles.includes(option)}
+                          onChange={handleToggleExtraRole(option)}
+                          size="small"
+                        />
+                      }
+                      label={
+                        option === 'recepcao'
+                          ? 'Recepção'
+                          : option === 'entrevista'
+                          ? 'Entrevista'
+                          : option === 'exame'
+                          ? 'Exame'
+                          : 'Administrador'
+                      }
+                    />
+                  ))}
+              </Stack>
+            </Box>
 
             <TextField
               label="Senha"

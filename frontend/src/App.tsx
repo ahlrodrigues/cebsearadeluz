@@ -30,7 +30,14 @@ import InstallPage from './pages/InstallPage'
 const HomeRedirect = () => {
   const { session } = useAuth()
   if (!session) return <Navigate to="/login" replace />
-  return <Navigate to={session.role === 'user' ? '/app/assistido/qr' : '/users'} replace />
+  const roles = session.roles || []
+  if (roles.includes('user')) {
+    return <Navigate to="/app/assistido/qr" replace />
+  }
+  if (roles.includes('exame')) {
+    return <Navigate to="/exams" replace />
+  }
+  return <Navigate to="/users" replace />
 }
 
 const App = () => {
@@ -130,7 +137,7 @@ const App = () => {
           path="/reports/scans"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["admin","recepcao","entrevista"]}>
+              <RoleRoute roles={["admin","recepcao","entrevista","exame"]}>
                 <ScanLogsPage />
               </RoleRoute>
             </PrivateRoute>
@@ -171,7 +178,7 @@ const App = () => {
           path="/exams"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["exame"]}>
+              <RoleRoute roles={["exame","admin"]}>
                 <ExamsPage />
               </RoleRoute>
             </PrivateRoute>
@@ -181,7 +188,7 @@ const App = () => {
           path="/exams/today"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["exame"]}>
+              <RoleRoute roles={["exame","admin"]}>
                 <ExamsTodayPage />
               </RoleRoute>
             </PrivateRoute>

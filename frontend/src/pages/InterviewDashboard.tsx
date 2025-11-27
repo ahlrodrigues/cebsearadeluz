@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Container, Paper, Stack, TextField, Typography, Table, TableHead, TableRow, TableCell, TableBody, Chip } from '@mui/material'
 import { fetchCompletedInterviews, type InterviewItem } from '../api/interviews'
-import { completeExam, fetchExamToday, type ExamQueueItem } from '../api/exam_ops'
+import { fetchExamToday, type ExamQueueItem } from '../api/exam_ops'
 
 const InterviewDashboard = () => {
   const [items, setItems] = useState<InterviewItem[]>([])
@@ -54,7 +54,8 @@ const InterviewDashboard = () => {
               <TableRow>
                 <TableCell>Nome</TableCell>
                 <TableCell>Tipo</TableCell>
-                <TableCell>Agendado</TableCell>
+                <TableCell>Dia de assistência</TableCell>
+                <TableCell>Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
               </TableRow>
             </TableHead>
@@ -63,14 +64,20 @@ const InterviewDashboard = () => {
                 <TableRow key={`${q.user_id}:${q.cycle_id}`}>
                   <TableCell>{q.name}</TableCell>
                   <TableCell><Chip label={q.pass_type ?? ''} size="small" /></TableCell>
-                  <TableCell>{q.scheduled_for ?? ''}</TableCell>
+                  <TableCell>{q.assistance_day ?? '—'}</TableCell>
+                  <TableCell>
+                    {q.exam_completed
+                      ? <Chip size="small" color="success" label="Concluído" />
+                      : <Chip size="small" color="warning" label="Pendente" />}
+                  </TableCell>
                   <TableCell align="right">
-                    <Button size="small" variant="contained" onClick={async () => {
-                      try {
-                        await completeExam(q.user_id)
-                        loadToday()
-                      } catch (e: unknown) {}
-                    }}>Fechar entrevista</Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      href={`/users/${q.user_id}/exam`}
+                    >
+                      Ficha
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

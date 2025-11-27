@@ -120,17 +120,16 @@ const AppLayout = () => {
               </>
             )}
 
-            {(session?.role === 'entrevista' || session?.role === 'admin') && (
+            {(session && (session.roles.includes('entrevista') || session.roles.includes('admin'))) && (
               <Button size="small" component={RouterLink} to="/interviews" color="inherit">Entrevistas</Button>
             )}
 
-            {session?.role === 'exame' && (
+            {(session && (session.roles.includes('exame') || session.roles.includes('admin'))) && (
               <Button
                 size="small"
                 component={RouterLink}
                 to="/exams"
                 color="inherit"
-                startIcon={<ScienceIcon />}
               >
                 Exames
               </Button>

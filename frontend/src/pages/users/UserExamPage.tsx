@@ -122,7 +122,7 @@ const UserExamPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { session } = useAuth();
-  const canEdit = session?.role === "exame" || session?.role === "admin";
+  const canEdit = !!session && (session.roles.includes("exame") || session.roles.includes("admin"));
 
   const [snackbar, setSnackbar] = useState<{
     message: string;
@@ -221,6 +221,7 @@ const UserExamPage = () => {
         answers: formState.answers.trim() || undefined,
         observations: formState.observations.trim() || undefined,
         recommendations: Array.from(formState.recommendations),
+        completed: true,
       },
     });
   };
@@ -239,7 +240,6 @@ const UserExamPage = () => {
       .map((c) => {
         const date =
           c.interview_completed_at ??
-          c.interview_scheduled_for ??
           c.completed_at ??
           c.started_at;
         return {

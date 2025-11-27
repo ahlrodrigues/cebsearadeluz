@@ -191,6 +191,15 @@ const UserListPage = () => {
     }
   };
 
+  const formatRoleLabel = (role: UserRole) => {
+    if (role === "user") return "Assistido";
+    if (role === "recepcao") return "Recepção";
+    if (role === "entrevista") return "Entrevista";
+    if (role === "exame") return "Exame";
+    if (role === "admin") return "Administrador";
+    return role;
+  };
+
   return (
     <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
       <Stack spacing={3} sx={{ width: "100%", maxWidth: 1200 }}>
@@ -545,15 +554,26 @@ const UserListPage = () => {
                           px: 1.5,
                         }}
                       >
-                        <Chip
-                          label={
-                            user.role === "admin"
-                              ? "Administrador"
-                              : "Assistido"
-                          }
-                          color={user.role === "admin" ? "primary" : "default"}
-                          size="small"
-                        />
+                        <Stack
+                          direction="row"
+                          spacing={0.5}
+                          justifyContent="center"
+                          flexWrap="wrap"
+                        >
+                          {Array.from(
+                            new Set<UserRole>([
+                              user.role,
+                              ...((user.extra_roles ?? []) as UserRole[]),
+                            ]),
+                          ).map((role) => (
+                            <Chip
+                              key={role}
+                              label={formatRoleLabel(role)}
+                              color={role === "admin" ? "primary" : "default"}
+                              size="small"
+                            />
+                          ))}
+                        </Stack>
                       </TableCell>
                       <TableCell
                         sx={{

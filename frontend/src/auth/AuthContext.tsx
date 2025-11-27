@@ -24,9 +24,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const pair = await doLogin(username, password);
     setTokens(pair.access_token, pair.refresh_token);
 
-    // Opcional: decodificar o access JWT para pegar sub/role
-    const payload = decodeJwtPayload<{ sub: string; role: any }>(pair.access_token);
-    const next = { userId: String(payload.sub), role: payload.role };
+    // Opcional: decodificar o access JWT para pegar sub/roles
+    const payload = decodeJwtPayload<{ sub: string; role: any; roles?: any[] }>(pair.access_token);
+    const primaryRole = payload.role as string;
+    const rolesArray = Array.isArray(payload.roles) && payload.roles.length
+      ? payload.roles
+      : [primaryRole];
+    const next = { userId: String(payload.sub), roles: rolesArray as any[] };
     setSession(next);
     return next;
   }
@@ -44,8 +48,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       doRefresh(rt)
         .then((pair) => {
           setTokens(pair.access_token, pair.refresh_token);
-          const payload = decodeJwtPayload<{ sub: string; role: any }>(pair.access_token);
-          setSession({ userId: String(payload.sub), role: payload.role });
+          const payload = decodeJwtPayload<{ sub: string; role: any; roles?: any[] }>(pair.access_token);
+          const primaryRole = payload.role as string;
+          const rolesArray = Array.isArray(payload.roles) && payload.roles.length
+            ? payload.roles
+            : [primaryRole];
+          setSession({ userId: String(payload.sub), roles: rolesArray as any[] });
         })
         .catch(() => {
           // refresh inválido: limpar para permitir redirecionamento ao login

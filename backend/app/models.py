@@ -36,6 +36,8 @@ class User(Base):
     social_network = Column(String(255), nullable=True)
     status = Column(String(20), nullable=False, default="Ativo")
     role = Column(String(20), nullable=False, default="user", index=True)
+    # Roles adicionais (armazenados como lista separada por vírgula)
+    extra_roles = Column(String(255), nullable=True)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     # Permissão para login digital (WebAuthn/biometria) por usuário
@@ -132,6 +134,7 @@ class ExamRecord(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    completed = Column(Boolean, nullable=False, default=False)
     answers = Column(Text, nullable=True)
     observations = Column(Text, nullable=True)
     recommendations = Column(JSON, nullable=False, default=list)

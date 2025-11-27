@@ -16,6 +16,7 @@ export interface UserFormValues {
   social_network: string
   status: UserStatus
   role: UserRole
+  extra_roles: UserRole[]
   assistance_day: string
   digital_login_enabled: boolean
   password: string

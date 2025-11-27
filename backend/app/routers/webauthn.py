@@ -235,8 +235,11 @@ def login_finish(payload: FinishLoginRequest, db: Session = Depends(get_db)):
     if not getattr(user, "digital_login_enabled", True):
         raise HTTPException(status_code=403, detail="Login digital desativado para este usuário")
     role = user.role or "user"
+    extra_raw = getattr(user, "extra_roles", None) or ""
+    extras = [r.strip() for r in extra_raw.split(",") if r.strip()]
+    roles = [role] + [r for r in extras if r not in {role}]
     return {
-        "access_token": create_access_token(str(user.id), role),
-        "refresh_token": create_refresh_token(str(user.id), role),
+        "access_token": create_access_token(str(user.id), role, roles),
+        "refresh_token": create_refresh_token(str(user.id), role, roles),
         "token_type": "bearer",
     }

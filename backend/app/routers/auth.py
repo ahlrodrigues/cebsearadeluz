@@ -33,9 +33,12 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail="Inactive user")
 
     role = user.role or "user"
+    extra_raw = getattr(user, "extra_roles", None) or ""
+    extras: list[str] = [r.strip() for r in extra_raw.split(",") if r.strip()]
+    roles = [role] + [r for r in extras if r not in {role}]
     return TokenPair(
-        access_token=create_access_token(str(user.id), role),
-        refresh_token=create_refresh_token(str(user.id), role),
+        access_token=create_access_token(str(user.id), role, roles),
+        refresh_token=create_refresh_token(str(user.id), role, roles),
     )
 
 @router.post("/refresh", response_model=TokenPair)
@@ -43,9 +46,10 @@ def refresh(refresh_token: str):
     payload = decode_token(refresh_token)
     if not payload or payload.type != "refresh":
         raise HTTPException(status_code=401, detail="Invalid refresh token")
+    roles = getattr(payload, "roles", None) or [payload.role]
     return TokenPair(
-        access_token=create_access_token(payload.sub, payload.role),
-        refresh_token=create_refresh_token(payload.sub, payload.role),
+        access_token=create_access_token(payload.sub, payload.role, roles),
+        refresh_token=create_refresh_token(payload.sub, payload.role, roles),
     )
 
 

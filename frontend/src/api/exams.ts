@@ -20,6 +20,7 @@ export interface ExamRecordResponse {
   next_pass_type?: string | null;
   created_at: string;
   updated_at?: string | null;
+  completed: boolean;
 }
 
 export interface ExamRecordCreatePayload {
@@ -27,6 +28,7 @@ export interface ExamRecordCreatePayload {
   observations?: string | null;
   recommendations?: ExamRecommendationValue[];
   next_pass_type?: string | null;
+  completed?: boolean;
 }
 
 export type ExamRecordUpdatePayload = Partial<ExamRecordCreatePayload>;

@@ -156,6 +156,7 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
         social_network=user_in.social_network,
         status=user_in.status.value,
         role=user_in.role.value,
+        extra_roles=",".join(r.value for r in getattr(user_in, "extra_roles", []) or []),
         hashed_password=hashed_password,
         is_active=user_in.status == schemas.UserStatus.ATIVO,
         digital_login_enabled=bool(getattr(user_in, 'digital_login_enabled', True)),
@@ -200,6 +201,8 @@ def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) 
         db_user.is_active = user_in.status == schemas.UserStatus.ATIVO
     if user_in.role is not None:
         db_user.role = user_in.role.value
+    if "extra_roles" in user_in.model_fields_set and user_in.extra_roles is not None:
+        db_user.extra_roles = ",".join(r.value for r in (user_in.extra_roles or []))
     if 'digital_login_enabled' in user_in.model_fields_set and user_in.digital_login_enabled is not None:
         db_user.digital_login_enabled = bool(user_in.digital_login_enabled)
     if 'assistance_day' in user_in.model_fields_set:
@@ -232,6 +235,7 @@ def create_exam_record(
 ) -> models.ExamRecord:
     exam = models.ExamRecord(
         user_id=user_id,
+        completed=bool(getattr(exam_in, "completed", False)),
         answers=exam_in.answers,
         observations=exam_in.observations,
         recommendations=list(exam_in.recommendations),
@@ -248,6 +252,8 @@ def update_exam_record(
     exam_record: models.ExamRecord,
     exam_in: schemas.ExamRecordUpdate,
 ) -> models.ExamRecord:
+    if exam_in.completed is not None:
+        exam_record.completed = bool(exam_in.completed)
     if exam_in.answers is not None:
         exam_record.answers = exam_in.answers
     if exam_in.observations is not None:

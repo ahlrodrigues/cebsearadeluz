@@ -1,7 +1,26 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
 import path from 'node:path'
 import fs from 'node:fs'
+import type { IncomingMessage } from 'node:http'
 import react from '@vitejs/plugin-react'
+
+const BACKEND_URL = 'http://127.0.0.1:8000'
+
+// Prefixes like /users also name frontend routes (/users/:id/edit etc.).
+// A real API call (axios/fetch) should hit the backend, but a full browser
+// navigation/refresh to the same path (Accept: text/html) must fall through
+// to Vite's own SPA handling so React Router can render it - otherwise the
+// backend's `{"detail":"Not Found"}` JSON is shown instead of the app.
+// Browsers send `Accept: text/html...` for navigations; axios/fetch calls
+// from the app never do, so this header is a reliable way to tell them apart.
+const apiOnly = (target: string): ProxyOptions => ({
+  target,
+  bypass: (req: IncomingMessage) => {
+    if (req.headers.accept?.includes('text/html')) {
+      return req.url
+    }
+  },
+})
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -30,12 +49,14 @@ export default defineConfig({
       return undefined
     })(),
     proxy: {
-      '/users': 'http://127.0.0.1:8000',
-      '/passes': 'http://127.0.0.1:8000',
-      '/auth': 'http://127.0.0.1:8000',
-      '/public': 'http://127.0.0.1:8000',
-      '/openapi.json': 'http://127.0.0.1:8000',
-      '/docs': 'http://127.0.0.1:8000',
+      '/users': apiOnly(BACKEND_URL),
+      '/passes': apiOnly(BACKEND_URL),
+      '/auth': apiOnly(BACKEND_URL),
+      '/public': apiOnly(BACKEND_URL),
+      '/openapi.json': apiOnly(BACKEND_URL),
+      // /docs is FastAPI's own Swagger page - always meant to be opened
+      // directly in the browser as HTML, so it must always proxy through.
+      '/docs': BACKEND_URL,
     },
   },
   preview: {

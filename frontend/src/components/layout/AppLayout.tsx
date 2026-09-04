@@ -16,6 +16,8 @@ const AppLayout = () => {
   const navigate = useNavigate()
   const base = (import.meta.env.BASE_URL ?? '/').replace(/\/+$/, '')
   const logoUrl = `${base}/icons/app-icon.svg`
+  const roles = session?.roles ?? []
+  const hasRole = (role: string) => roles.includes(role)
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -59,30 +61,31 @@ const AppLayout = () => {
               </>
             )}
 
-            {session?.role === 'admin' && (
-              <>
-                <Button
-                  size="small"
-                  component={RouterLink}
-                  to="/users"
-                  color="inherit"
-                  variant={isUsersList ? 'outlined' : 'text'}
-                >
-                  Assistidos
-                </Button>
-                <Button
-                  size="small"
-                  component={RouterLink}
-                  to="/users/new"
-                  color="inherit"
-                  variant={isCreateUser ? 'outlined' : 'text'}
-                >
-                  Novo cadastro
-                </Button>
-              </>
+            {hasRole('admin') && (
+              <Button
+                size="small"
+                component={RouterLink}
+                to="/users"
+                color="inherit"
+                variant={isUsersList ? 'outlined' : 'text'}
+              >
+                Assistidos
+              </Button>
             )}
 
-            {(session?.role === 'recepcao' || session?.role === 'admin') && (
+            {(hasRole('admin') || hasRole('recepcao')) && (
+              <Button
+                size="small"
+                component={RouterLink}
+                to="/users/new"
+                color="inherit"
+                variant={isCreateUser ? 'outlined' : 'text'}
+              >
+                Novo cadastro
+              </Button>
+            )}
+
+            {(hasRole('recepcao') || hasRole('admin')) && (
               <Button
                 size="small"
                 component={RouterLink}
@@ -96,7 +99,7 @@ const AppLayout = () => {
             )}
             {/* Link "Senhas" removido: funcionalidade já disponível em Presenças */}
 
-            {(session?.role === 'admin' || session?.role === 'recepcao' || session?.role === 'entrevista') && (
+            {(hasRole('admin') || hasRole('recepcao') || hasRole('entrevista')) && (
               <>
                 <Button
                   size="small"
@@ -112,7 +115,7 @@ const AppLayout = () => {
               </>
             )}
 
-            {session?.role === 'user' && (
+            {hasRole('user') && (
               <>
                 <Button size="small" component={RouterLink} to="/app/assistido/qr" color="inherit">Meu QR</Button>
                 <Button size="small" component={RouterLink} to="/app/assistido/passes" color="inherit">Meus passes</Button>

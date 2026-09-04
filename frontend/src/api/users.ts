@@ -32,6 +32,7 @@ export interface CreateUserPayload {
   extra_roles?: UserRole[];
   assistance_day?: AssistanceDay;
   digital_login_enabled?: boolean;
+  preferential?: boolean;
 }
 
 export interface UserResponse {
@@ -54,6 +55,7 @@ export interface UserResponse {
   extra_roles?: UserRole[] | null;
   assistance_day?: AssistanceDay | null;
   digital_login_enabled: boolean;
+  preferential: boolean;
   created_at: string;
   updated_at?: string | null;
   has_active_cycle: boolean;
@@ -92,6 +94,7 @@ export type UpdateUserPayload =
     password?: string;
     assistance_day?: AssistanceDay | null;
     digital_login_enabled?: boolean;
+    preferential?: boolean;
   };
 
 const cleanPayload = (payload: CreateUserPayload): CreateUserPayload => {
@@ -144,6 +147,10 @@ const cleanPayload = (payload: CreateUserPayload): CreateUserPayload => {
 
   if (typeof payload.digital_login_enabled === 'boolean') {
     result.digital_login_enabled = payload.digital_login_enabled;
+  }
+
+  if (typeof payload.preferential === 'boolean') {
+    result.preferential = payload.preferential;
   }
 
   return result;
@@ -255,6 +262,10 @@ const cleanUpdatePayload = (payload: UpdateUserPayload): UpdateUserPayload => {
   assign("password", payload.password);
   if (typeof payload.digital_login_enabled === 'boolean') {
     result.digital_login_enabled = payload.digital_login_enabled;
+  }
+
+  if (typeof payload.preferential === 'boolean') {
+    result.preferential = payload.preferential;
   }
 
   if (Array.isArray(payload.extra_roles)) {

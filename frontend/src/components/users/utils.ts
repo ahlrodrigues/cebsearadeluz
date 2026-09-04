@@ -16,6 +16,21 @@ const optional = (value: string): string | undefined => {
   return trimmed.length === 0 ? undefined : trimmed
 }
 
+export const isAgeSixtyOrMore = (birthDate: string): boolean => {
+  if (!birthDate) return false
+  const [y, m, d] = birthDate.split('-').map(Number)
+  if (!y || !m || !d) return false
+  const today = new Date()
+  const birth = new Date(y, m - 1, d)
+  const age = today.getFullYear() - birth.getFullYear() - (
+    today.getMonth() < birth.getMonth() ||
+    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())
+      ? 1
+      : 0
+  )
+  return age >= 60
+}
+
 export const normalizeInitialValues = (
   values?: Partial<UserFormValues>,
 ): UserFormValues => ({
@@ -27,6 +42,7 @@ export const normalizeInitialValues = (
   confirm_password: values?.confirm_password ?? values?.password ?? '',
   assistance_day: values?.assistance_day ?? '',
   digital_login_enabled: values?.digital_login_enabled ?? true,
+  preferential: values?.preferential ?? false,
 })
 
 export const mapToCreatePayload = (values: UserFormValues): CreateUserPayload => ({
@@ -48,6 +64,7 @@ export const mapToCreatePayload = (values: UserFormValues): CreateUserPayload =>
   extra_roles: values.extra_roles,
   assistance_day: optional(values.assistance_day) as AssistanceDay | undefined,
   digital_login_enabled: values.digital_login_enabled,
+  preferential: values.preferential,
   password: values.password,
 })
 
@@ -72,6 +89,7 @@ export const mapToUpdatePayload = (values: UserFormValues): UpdateUserPayload =>
     role: values.role,
     extra_roles: values.extra_roles,
     digital_login_enabled: values.digital_login_enabled,
+    preferential: values.preferential,
   }
 
   if (values.password.trim().length > 0) {
@@ -107,6 +125,7 @@ export const mapUserResponseToFormValues = (user: UserResponse): Partial<UserFor
   extra_roles: (user.extra_roles ?? []) as UserRole[],
   assistance_day: user.assistance_day ?? '',
   digital_login_enabled: user.digital_login_enabled ?? true,
+  preferential: user.preferential ?? false,
   password: '',
   confirm_password: '',
 })

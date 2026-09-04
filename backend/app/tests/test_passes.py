@@ -45,6 +45,10 @@ def test_register_presence_creates_cycle(client: TestClient):
 
 
 def test_sequence_completion_advances_stage(client: TestClient):
+    # Completar as 4 presenças de um ciclo não avança o estágio automaticamente
+    # (desde o commit 3b5d75a): o ciclo fecha aguardando entrevista, e só a
+    # conclusão da ficha de exame (PUT /users/{id}/exam com completed=True)
+    # dispara a criação do próximo ciclo. Ver crud._complete_pending_interview.
     user_id = create_assistido(client)
     base_date = date(2025, 1, 1)
 
@@ -59,14 +63,32 @@ def test_sequence_completion_advances_stage(client: TestClient):
     cycles_response = client.get(f"/users/{user_id}/pass-cycles")
     assert cycles_response.status_code == 200
     cycles = cycles_response.json()
-    assert len(cycles) == 2
+    assert len(cycles) == 1
 
-    first_cycle, second_cycle = cycles[1], cycles[0]
-
+    first_cycle = cycles[0]
     assert first_cycle["stage_number"] == 1
     assert first_cycle["status"] == "Concluído"
     assert first_cycle["requires_interview"] is True
+    assert first_cycle["interview_completed_at"] is None
     assert len(first_cycle["sessions"]) == 4
+
+    exam_response = client.put(
+        f"/users/{user_id}/exam",
+        json={"next_pass_type": "P3A"},
+    )
+    assert exam_response.status_code == 200
+
+    cycles_response = client.get(f"/users/{user_id}/pass-cycles")
+    cycles = cycles_response.json()
+    assert len(cycles) == 2
+
+    first_cycle, second_cycle = cycles[1], cycles[0]
+    assert first_cycle["status"] == "Concluído"
+    assert first_cycle["interview_completed_at"] is not None
+
+    assert second_cycle["stage_number"] == 2
+    assert second_cycle["pass_type"] == "P3A"
+    assert second_cycle["status"] == "Ativo"
 
     assert second_cycle["stage_number"] == 2
     assert second_cycle["status"] == "Ativo"

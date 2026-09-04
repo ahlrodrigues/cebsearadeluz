@@ -38,6 +38,7 @@ class User(Base):
     role = Column(String(20), nullable=False, default="user", index=True)
     # Roles adicionais (armazenados como lista separada por vírgula)
     extra_roles = Column(String(255), nullable=True)
+    preferential = Column(Boolean, nullable=False, default=False)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     # Permissão para login digital (WebAuthn/biometria) por usuário
@@ -170,6 +171,7 @@ class ScanLog(Base):
     error = Column(String(255), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     session_id = Column(Integer, ForeignKey("pass_sessions.id"), nullable=True)
+    is_preferential = Column(Boolean, default=False, nullable=False)
 
 
 class WebAuthnCredential(Base):

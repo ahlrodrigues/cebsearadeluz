@@ -19,6 +19,7 @@ export interface UserFormValues {
   extra_roles: UserRole[]
   assistance_day: string
   digital_login_enabled: boolean
+  preferential: boolean
   password: string
   confirm_password: string
 }

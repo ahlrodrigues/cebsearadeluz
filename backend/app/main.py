@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from . import crud, models, passes, schemas
 from pydantic import BaseModel
-from .database import Base, engine, get_db
+from .database import Base, engine, get_db, init_db
 try:
     from .routers import auth as auth_router
 except Exception:  # pragma: no cover - allow tests without auth deps
@@ -71,6 +71,23 @@ def _ensure_user_extra_roles_column():
         pass
 
 
+def _ensure_user_preferential_column():
+    """Add users.preferential if missing (SQLite-safe)."""
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            cols = conn.execute(text("PRAGMA table_info(users)"))
+            names = {row[1] for row in cols}
+            if "preferential" not in names:
+                conn.execute(
+                    text("ALTER TABLE users ADD COLUMN preferential BOOLEAN NOT NULL DEFAULT 0")
+                )
+                conn.commit()
+    except Exception:
+        # Best-effort
+        pass
+
+
 def _ensure_exam_completed_column():
     """Add exam_records.completed if missing (SQLite-safe)."""
     try:
@@ -92,8 +109,11 @@ def _ensure_exam_completed_column():
 
 
 # Best-effort schema tweaks
+# Garantir estrutura mínima ao subir a API
+init_db()
 _ensure_user_digital_login_column()
 _ensure_user_extra_roles_column()
+_ensure_user_preferential_column()
 _ensure_exam_completed_column()
 
 
@@ -121,8 +141,14 @@ CONFIRM_EMAIL_ON_REGISTER = os.getenv("CONFIRM_EMAIL_ON_REGISTER", "0") == "1"
 def create_user(
     user_in: schemas.UserCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(["admin"])) if PROTECT_USER_ADMIN_ROUTES else None,
+    caller=Depends(require_roles(["admin", "recepcao"])) if PROTECT_USER_ADMIN_ROUTES else None,
 ):
+    if caller is not None:
+        caller_roles = [caller.role] + (caller.roles or [])
+        if "admin" not in caller_roles:
+            # Recepção pode cadastrar assistidos, mas nunca elevar papéis.
+            user_in.role = schemas.UserRole.USER
+            user_in.extra_roles = []
     if user_in.email:
         existing_user = crud.get_user_by_email(db, user_in.email)
         if existing_user:
@@ -141,6 +167,7 @@ def read_users(
     search: str | None = None,
     status: schemas.UserStatus | None = None,
     role: schemas.UserRole | None = None,
+    assistance_day: schemas.AssistanceDay | None = None,
     db: Session = Depends(get_db),
     _=Depends(require_roles(["admin","recepcao","entrevista","exame"])) if PROTECT_USER_ADMIN_ROUTES else None,
 ):
@@ -151,6 +178,7 @@ def read_users(
         search=search,
         status=status.value if status else None,
         role=role.value if role else None,
+        assistance_day=assistance_day.value if assistance_day else None,
     )
     return users
 
@@ -537,19 +565,40 @@ def scan_qr_and_register_presence(
     return session
 
 
+_scanlog_table_ensured = False
+
+
 def _ensure_scanlog_table():
+    global _scanlog_table_ensured
+    if _scanlog_table_ensured:
+        return
     try:
         models.Base.metadata.create_all(bind=engine, tables=[models.ScanLog.__table__])
+        # Add column is_preferential if missing (SQLite-safe)
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            cols = conn.execute(text("PRAGMA table_info(scan_logs)"))
+            names = {row[1] for row in cols}
+            if "is_preferential" not in names:
+                conn.execute(
+                    text("ALTER TABLE scan_logs ADD COLUMN is_preferential BOOLEAN NOT NULL DEFAULT 0")
+                )
+                conn.commit()
+        _scanlog_table_ensured = True
     except Exception:
         pass
 
 
-def _next_ticket_number(db: Session, for_date: date) -> int:
+def _next_ticket_number(db: Session, for_date: date, *, preferential: bool = False) -> int:
     _ensure_scanlog_table()
     from sqlalchemy import func
     last = (
         db.query(func.max(models.ScanLog.ticket_number))
-        .filter(models.ScanLog.scanned_for == for_date, models.ScanLog.ok == True)
+        .filter(
+            models.ScanLog.scanned_for == for_date,
+            models.ScanLog.ok == True,
+            models.ScanLog.is_preferential == preferential,
+        )
         .scalar()
     )
     return (last or 0) + 1
@@ -566,6 +615,7 @@ def _log_scan(
     user_id: int | None,
     session_id: int | None,
     ticket_number: int | None,
+    is_preferential: bool = False,
 ):
     _ensure_scanlog_table()
     log = models.ScanLog(
@@ -577,6 +627,7 @@ def _log_scan(
         user_id=user_id,
         session_id=session_id,
         ticket_number=ticket_number,
+        is_preferential=is_preferential,
     )
     db.add(log)
     db.commit()
@@ -756,7 +807,8 @@ def scan_kiosk(payload: schemas.QRScanRequest, db: Session = Depends(get_db), _=
             notes=payload.notes or "Presença via QR (kiosk)",
         )
 
-        ticket = _next_ticket_number(db, presence_date)
+        is_preferential = bool(getattr(user, "preferential", False))
+        ticket = _next_ticket_number(db, presence_date, preferential=is_preferential)
         _log_scan(
             db,
             raw=raw,
@@ -767,6 +819,7 @@ def scan_kiosk(payload: schemas.QRScanRequest, db: Session = Depends(get_db), _=
             user_id=resolved_user_id,
             session_id=session.id,
             ticket_number=ticket,
+            is_preferential=is_preferential,
         )
 
         return schemas.ScanKioskResponse(
@@ -819,6 +872,7 @@ def list_scan_logs(date_ref: date | None = None, db: Session = Depends(get_db), 
             "user_id": l.user_id,
             "session_id": l.session_id,
             "user_name": names.get(l.user_id or -1),
+            "is_preferential": getattr(l, "is_preferential", False),
         }
         result.append(item)
     return result
@@ -1290,6 +1344,7 @@ class TicketReserveRequest(BaseModel):
     # Use Optional with forward-ref to avoid eval issues inside class body
     date: Optional["date"] = None
     pass_type: str | None = None  # label only
+    preferential: bool = False
 
 
 class TicketReserveItem(BaseModel):
@@ -1309,7 +1364,7 @@ def reserve_tickets(
         raise HTTPException(status_code=400, detail="count deve estar entre 1 e 100")
     results: list[TicketReserveItem] = []
     for _ in range(payload.count):
-        n = _next_ticket_number(db, day)
+        n = _next_ticket_number(db, day, preferential=payload.preferential)
         _log_scan(
             db,
             raw=None,
@@ -1320,6 +1375,7 @@ def reserve_tickets(
             user_id=None,
             session_id=None,
             ticket_number=n,
+            is_preferential=payload.preferential,
         )
         results.append(TicketReserveItem(ticket_number=n, scanned_for=day, pass_type=payload.pass_type))
     return results

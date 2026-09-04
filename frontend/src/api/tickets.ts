@@ -4,6 +4,7 @@ export type TicketReserveRequest = {
   count: number
   pass_type?: string | null
   date?: string | null
+  preferential?: boolean
 }
 
 export type TicketReserveItem = {
@@ -16,4 +17,3 @@ export async function reserveTickets(req: TicketReserveRequest): Promise<TicketR
   const { data } = await http.post<TicketReserveItem[]>('/tickets/reserve', req)
   return data
 }
-

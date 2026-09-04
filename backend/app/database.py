@@ -1,13 +1,32 @@
 from contextlib import contextmanager
 from typing import Generator
 
+import logging
 import os
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+logger = logging.getLogger(__name__)
+
+
+# Resolve default DB file with absolute path to avoid CWD surprises.
+# Prefer a shared app.db at repo root if it exists; otherwise use backend/app.db.
+def _default_sqlite_url() -> str:
+    base_dir = Path(__file__).resolve().parent.parent  # backend/
+    root_db = base_dir.parent / "app.db"
+    backend_db = base_dir / "app.db"
+    db_file = root_db if root_db.exists() else backend_db
+    logger.warning(
+        "DATABASE_URL not set; defaulting to %s (root app.db %s)",
+        db_file,
+        "found" if root_db.exists() else "not found, using backend/app.db",
+    )
+    return f"sqlite:///{db_file}"
+
 
 # Allow overriding the database via env var so tests and dev can isolate DBs
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+DATABASE_URL = os.getenv("DATABASE_URL") or _default_sqlite_url()
 
 
 def _make_engine(url: str):
@@ -51,3 +70,9 @@ def get_db() -> Generator:
         yield db
     finally:
         db.close()
+
+
+def init_db() -> None:
+    """Create tables if they do not exist."""
+    from . import models  # local import to avoid circular at module import
+    Base.metadata.create_all(bind=engine)

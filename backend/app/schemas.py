@@ -2,7 +2,7 @@ import datetime as dt
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserStatus(str, Enum):
@@ -52,6 +52,20 @@ class UserBase(BaseModel):
     assistance_day: Optional[AssistanceDay] = Field(default=None)
     # Controle por usuário do login digital (WebAuthn)
     digital_login_enabled: bool = Field(default=True)
+    preferential: bool = Field(default=False)
+
+    @field_validator("extra_roles", mode="before")
+    @classmethod
+    def _split_extra_roles(cls, value):
+        # The DB stores extra_roles as a nullable CSV string; normalize it
+        # here for API responses instead of mutating the ORM object (which
+        # would corrupt later writes on the same session, since the column
+        # is a String).
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [r for r in value.split(",") if r]
+        return value
 
 
 class UserCreate(UserBase):
@@ -91,6 +105,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=8, max_length=128)
     assistance_day: Optional[AssistanceDay] = None
     digital_login_enabled: Optional[bool] = None
+    preferential: Optional[bool] = None
 
 
 class UserInDBBase(UserBase):
@@ -141,6 +156,7 @@ class ScanLog(BaseModel):
     error: Optional[str] = None
     user_id: Optional[int] = None
     session_id: Optional[int] = None
+    is_preferential: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

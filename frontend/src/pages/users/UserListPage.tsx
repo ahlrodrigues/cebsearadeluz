@@ -347,9 +347,9 @@ const UserListPage = () => {
           </Alert>
         )}
 
-        <Paper sx={{ display: "block", width: "100%", mt: 3 }}>
+        <Paper sx={{ display: "block", width: "100%", mt: 3, overflowX: "auto" }}>
           {isLoading || isFetching ? <LinearProgress /> : <Divider />}
-          <Table size="medium" sx={{ tableLayout: "auto", width: "100%" }}>
+          <Table size="medium" sx={{ tableLayout: "auto", width: "100%", minWidth: 1100 }}>
             <TableHead>
               <TableRow>
                 <TableCell
@@ -400,7 +400,7 @@ const UserListPage = () => {
                     px: 1.5,
                   }}
                 >
-                  Dia de assistência
+                  Preferencial
                 </TableCell>
                 <TableCell
                   sx={{
@@ -410,7 +410,7 @@ const UserListPage = () => {
                     px: 1.5,
                   }}
                 >
-                  Cadastro
+                  Dia de assistência
                 </TableCell>
                 <TableCell
                   align="right"
@@ -582,7 +582,11 @@ const UserListPage = () => {
                           px: 1.5,
                         }}
                       >
-                        {user.assistance_day ?? "—"}
+                        <Chip
+                          label={user.preferential ? "Sim" : "Não"}
+                          color={user.preferential ? "secondary" : "default"}
+                          size="small"
+                        />
                       </TableCell>
                       <TableCell
                         sx={{
@@ -591,11 +595,14 @@ const UserListPage = () => {
                           px: 1.5,
                         }}
                       >
-                        {formatDateTime(user.created_at)}
+                        {user.assistance_day ?? "—"}
                       </TableCell>
                       <TableCell
-                        align="center"
-                        sx={{ whiteSpace: "nowrap", px: 1.5 }}
+                        sx={{
+                          whiteSpace: "nowrap",
+                          textAlign: "center",
+                          px: 1.5,
+                        }}
                       >
                         <Stack
                           direction="row"

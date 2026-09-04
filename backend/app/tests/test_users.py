@@ -5,6 +5,9 @@ from fastapi.testclient import TestClient
 
 from .test_passes import create_assistido
 
+from .. import main as main_module
+from .. import schemas
+from ..auth_tokens import TokenPayload
 from ..models import User
 from ..security import verify_password
 from .conftest import TestingSessionLocal
@@ -52,6 +55,38 @@ def test_create_user(client: TestClient):
     assert data["status"] == "Ativo"
     assert data["role"] == "user"
     assert data["assistance_day"] == "Segunda-feira"
+
+
+def test_recepcao_can_create_user_but_cannot_elevate_role(db_session):
+    caller = TokenPayload(
+        sub="2", role="recepcao", roles=["recepcao"], type="access", exp=9999999999, iat=0
+    )
+    payload = schemas.UserCreate(
+        full_name="Novo Assistido",
+        email="novo.assistido@example.com",
+        password="senhaSegura1",
+        status=schemas.UserStatus.ATIVO,
+        role=schemas.UserRole.ADMIN,  # tentativa de elevação de privilégio
+        extra_roles=[schemas.UserRole.ADMIN],
+    )
+    created = main_module.create_user(payload, db_session, caller=caller)
+    assert created.role == "user"
+    assert not created.extra_roles
+
+
+def test_admin_create_user_keeps_requested_role(db_session):
+    caller = TokenPayload(
+        sub="1", role="admin", roles=["admin"], type="access", exp=9999999999, iat=0
+    )
+    payload = schemas.UserCreate(
+        full_name="Nova Recepcionista",
+        email="nova.recepcao@example.com",
+        password="senhaSegura1",
+        status=schemas.UserStatus.ATIVO,
+        role=schemas.UserRole.RECEPCAO,
+    )
+    created = main_module.create_user(payload, db_session, caller=caller)
+    assert created.role == "recepcao"
 
 
 def test_prevent_duplicate_emails(client: TestClient):

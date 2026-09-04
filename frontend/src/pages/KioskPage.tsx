@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Box, Container, Paper, Stack, TextField, Typography, Divider, Button, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
+import { Alert, Box, Container, Paper, Stack, TextField, Typography, Divider, Button, FormControl, InputLabel, Select, MenuItem, FormControlLabel, Checkbox } from '@mui/material'
 import { scanPassPresenceKiosk, type ScanKioskResponse, fetchActivePassCycle } from '../api/passes'
 import { reserveTickets } from '../api/tickets'
 
@@ -20,6 +20,7 @@ const KioskPage = () => {
   // Avulsas
   const [passType, setPassType] = useState<string>('P1')
   const [count, setCount] = useState<number>(1)
+  const [preferentialTicket, setPreferentialTicket] = useState<boolean>(false)
   const [printing, setPrinting] = useState(false)
   const [reserved, setReserved] = useState<{ ticket_number: number }[] | null>(null)
   // Sempre imprimir ticket ao registrar e auto-enviar quando o leitor não mandar Enter
@@ -160,6 +161,10 @@ const KioskPage = () => {
                 value={count}
                 onChange={(e) => setCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
               />
+              <FormControlLabel
+                control={<Checkbox checked={preferentialTicket} onChange={(_, checked) => setPreferentialTicket(checked)} />}
+                label="Preferencial"
+              />
               <Button
                 variant="contained"
                 disableElevation
@@ -167,7 +172,7 @@ const KioskPage = () => {
                 onClick={async () => {
                   try {
                     setPrinting(true)
-                    const items = await reserveTickets({ count, pass_type: passType })
+                    const items = await reserveTickets({ count, pass_type: passType, preferential: preferentialTicket })
                     setReserved(items)
                     setTimeout(() => window.print(), 0)
                   } finally {
@@ -185,6 +190,9 @@ const KioskPage = () => {
                     <Typography variant="overline" display="block">Senha</Typography>
                     <Typography variant="h4" fontWeight={700}>{r.ticket_number}</Typography>
                     <Typography variant="body2" color="text.secondary">{passType}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {preferentialTicket ? 'Preferencial' : 'Normal'}
+                    </Typography>
                   </Box>
                 ))}
               </Box>

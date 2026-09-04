@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from sqlalchemy import func, or_
@@ -7,6 +7,19 @@ from sqlalchemy.orm import Session, selectinload
 
 from . import models, passes, schemas
 from .security import get_password_hash
+
+
+def _is_age_60_or_more(birth_date: Optional[date]) -> bool:
+    if not birth_date:
+        return False
+    today = date.today()
+    try:
+        age = today.year - birth_date.year - (
+            (today.month, today.day) < (birth_date.month, birth_date.day)
+        )
+        return age >= 60
+    except Exception:
+        return False
 
 
 def _annotate_active_cycle_summary(user: models.User) -> models.User:
@@ -109,6 +122,7 @@ def get_users(
     search: Optional[str] = None,
     status: Optional[str] = None,
     role: Optional[str] = None,
+    assistance_day: Optional[str] = None,
 ):
     query = db.query(models.User).options(
         selectinload(models.User.pass_cycles).selectinload(models.PassCycle.sessions)
@@ -126,6 +140,8 @@ def get_users(
         query = query.filter(models.User.status == status)
     if role:
         query = query.filter(models.User.role == role)
+    if assistance_day:
+        query = query.filter(models.User.assistance_day == assistance_day)
 
     users = (
         query.order_by(models.User.created_at.desc())
@@ -140,6 +156,9 @@ def get_users(
 
 def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
     hashed_password = get_password_hash(user_in.password)
+    preferential = bool(getattr(user_in, "preferential", False))
+    if _is_age_60_or_more(getattr(user_in, "birth_date", None)):
+        preferential = True
     db_user = models.User(
         full_name=user_in.full_name,
         social_name=user_in.social_name,
@@ -157,6 +176,7 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
         status=user_in.status.value,
         role=user_in.role.value,
         extra_roles=",".join(r.value for r in getattr(user_in, "extra_roles", []) or []),
+        preferential=preferential,
         hashed_password=hashed_password,
         is_active=user_in.status == schemas.UserStatus.ATIVO,
         digital_login_enabled=bool(getattr(user_in, 'digital_login_enabled', True)),
@@ -209,6 +229,10 @@ def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) 
         db_user.assistance_day = (
             user_in.assistance_day.value if user_in.assistance_day else None
         )
+    if 'preferential' in user_in.model_fields_set and user_in.preferential is not None:
+        db_user.preferential = bool(user_in.preferential)
+    if _is_age_60_or_more(getattr(db_user, "birth_date", None)):
+        db_user.preferential = True
     if user_in.password is not None:
         db_user.hashed_password = get_password_hash(user_in.password)
     db.commit()
@@ -230,6 +254,61 @@ def get_exam_record(db: Session, user_id: int) -> Optional[models.ExamRecord]:
     )
 
 
+def _complete_pending_interview(db: Session, user_id: int, exam: models.ExamRecord) -> None:
+    """Close the pass cycle waiting for interview and start the next one.
+
+    The exam ficha is the only place staff mark an interview as done (there's
+    no separate "close interview" action), so saving it with completed=True
+    is what should advance the assistido to the next pass stage. Idempotent:
+    once a cycle's interview_completed_at is set, this query no longer
+    matches it, so re-saving an already-completed ficha is a no-op.
+    """
+    if not getattr(exam, "completed", False):
+        return
+
+    cycle = (
+        db.query(models.PassCycle)
+        .filter(
+            models.PassCycle.user_id == user_id,
+            models.PassCycle.status == schemas.PassCycleStatus.CONCLUIDO.value,
+            models.PassCycle.requires_interview == True,
+            models.PassCycle.interview_completed_at.is_(None),
+        )
+        .order_by(models.PassCycle.completed_at.desc(), models.PassCycle.id.desc())
+        .first()
+    )
+    if cycle is None:
+        return
+
+    cycle.interview_completed_at = passes._utcnow()
+    db.add(cycle)
+    db.commit()
+    db.refresh(cycle)
+
+    if passes.get_active_cycle(db, user_id) is not None:
+        return
+
+    next_stage = cycle.stage_number + 1
+    if next_stage > len(passes.PASS_TYPE_SEQUENCE):
+        return
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    assistance_day = getattr(user, "assistance_day", None)
+    today = date.today()
+    next_start = passes.compute_next_assistance_date(assistance_day, today) or (
+        today + timedelta(days=7)
+    )
+    passes.create_pass_cycle(
+        db,
+        user_id=user_id,
+        stage_number=next_stage,
+        pass_type=exam.next_pass_type,
+        start_date=next_start,
+        assistance_day=assistance_day,
+    )
+    db.commit()
+
+
 def create_exam_record(
     db: Session, user_id: int, exam_in: schemas.ExamRecordCreate
 ) -> models.ExamRecord:
@@ -244,6 +323,7 @@ def create_exam_record(
     db.add(exam)
     db.commit()
     db.refresh(exam)
+    _complete_pending_interview(db, user_id, exam)
     return exam
 
 
@@ -264,4 +344,5 @@ def update_exam_record(
         exam_record.next_pass_type = exam_in.next_pass_type.value if exam_in.next_pass_type else None
     db.commit()
     db.refresh(exam_record)
+    _complete_pending_interview(db, exam_record.user_id, exam_record)
     return exam_record

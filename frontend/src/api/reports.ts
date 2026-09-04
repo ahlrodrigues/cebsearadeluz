@@ -12,6 +12,7 @@ export interface ScanLog {
   user_id?: number | null;
   session_id?: number | null;
   user_name?: string | null;
+  is_preferential?: boolean;
 }
 
 export const fetchScanLogs = async (

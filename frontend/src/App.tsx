@@ -67,7 +67,7 @@ const App = () => {
           path="/users/new"
           element={
             <PrivateRoute>
-              <RoleRoute roles={["admin"]}>
+              <RoleRoute roles={["admin", "recepcao"]}>
                 <CreateUserPage />
               </RoleRoute>
             </PrivateRoute>

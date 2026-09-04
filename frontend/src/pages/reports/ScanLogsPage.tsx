@@ -103,6 +103,7 @@ const ScanLogsPage = () => {
                 <TableCell>Hora</TableCell>
                 <TableCell>OK</TableCell>
                 <TableCell>Ticket</TableCell>
+                <TableCell>Preferencial</TableCell>
                 <TableCell>Usuário</TableCell>
                 <TableCell>Tipo</TableCell>
                 <TableCell>Erro</TableCell>
@@ -114,6 +115,7 @@ const ScanLogsPage = () => {
                   <TableCell>{new Date(log.created_at).toLocaleTimeString()}</TableCell>
                   <TableCell>{log.ok ? 'Sim' : 'Não'}</TableCell>
                   <TableCell>{log.ticket_number ?? ''}</TableCell>
+                  <TableCell>{log.is_preferential ? 'Sim' : 'Não'}</TableCell>
                   <TableCell>{log.user_name ?? log.user_id ?? ''}</TableCell>
                   <TableCell>{log.token_type ?? ''}</TableCell>
                   <TableCell>{log.error ?? ''}</TableCell>
@@ -121,7 +123,7 @@ const ScanLogsPage = () => {
               ))}
               {logs.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <Typography color="text.secondary">Sem leituras para a data.</Typography>
                   </TableCell>
                 </TableRow>

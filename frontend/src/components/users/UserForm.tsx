@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   CircularProgress,
+  Checkbox,
   FormControlLabel,
   IconButton,
   InputAdornment,
@@ -24,8 +25,9 @@ import type { AxiosError } from 'axios'
 
 import type { CreateUserPayload, UpdateUserPayload, UserRole, UserStatus } from '../../api/users'
 import type { UserFormValues } from './types'
+import { useAuth } from '../../auth/useAuth'
 import { lookupCep } from '../../api/cep'
-import { mapToCreatePayload, mapToUpdatePayload, normalizeInitialValues } from './utils'
+import { isAgeSixtyOrMore, mapToCreatePayload, mapToUpdatePayload, normalizeInitialValues } from './utils'
 
 export type UserFormMode = 'create' | 'edit'
 
@@ -225,6 +227,12 @@ const UserForm = ({
 
   const fullRow = { xs: 'span 1', md: 'span 2' } as const
 
+  // Só admin escolhe papel/perfis adicionais; recepção cadastra sempre como
+  // assistido comum (o backend também força isso para quem não é admin).
+  // useAuth() context has no Provider default, so guard with optional chaining.
+  const session = useAuth()?.session
+  const canManageRoles = (session?.roles ?? []).includes('admin')
+
   const resolvedTitle =
     title ?? (mode === 'create' ? 'Cadastro de assistido' : 'Atualização de assistido')
   const resolvedSubtitle =
@@ -233,6 +241,14 @@ const UserForm = ({
   const resolvedSubmitLabel = submitLabel ?? (mode === 'create' ? 'Salvar assistido' : 'Salvar alterações')
   const resolvedSuccessMessage = successMessage ??
     (mode === 'create' ? 'Assistido cadastrado com sucesso!' : 'Dados atualizados com sucesso!')
+
+  const isSixtyOrOlder = isAgeSixtyOrMore(values.birth_date)
+
+  useEffect(() => {
+    if (isSixtyOrOlder) {
+      setValues((current) => (current.preferential ? current : { ...current, preferential: true }))
+    }
+  }, [values.birth_date, isSixtyOrOlder])
 
   return (
     <>
@@ -423,6 +439,26 @@ const UserForm = ({
             />
           </Box>
 
+          <Box sx={{ gridColumn: fullRow }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={values.preferential}
+                  disabled={isSixtyOrOlder}
+                  onChange={(_, checked) =>
+                    setValues((v) => ({ ...v, preferential: checked }))
+                  }
+                />
+              }
+              label="Atendimento preferencial"
+            />
+            <Typography variant="caption" color="text.secondary" display="block">
+              {isSixtyOrOlder
+                ? 'Marcação automática e bloqueada para idade igual ou superior a 60 anos.'
+                : 'Pode ser ativada manualmente quando necessário.'}
+            </Typography>
+          </Box>
+
             <TextField
               label="Status"
               select
@@ -438,59 +474,63 @@ const UserForm = ({
               ))}
             </TextField>
 
-            <TextField
-              label="Perfil principal"
-              select
-              value={values.role}
-              onChange={handleChange('role')}
-              required
-              fullWidth
-            >
-              {roleOptions.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option === 'user'
-                    ? 'Assistido'
-                    : option === 'recepcao'
-                    ? 'Recepção'
-                    : option === 'entrevista'
-                    ? 'Entrevista'
-                    : option === 'exame'
-                    ? 'Exame'
-                    : 'Administrador'}
-                </MenuItem>
-              ))}
-            </TextField>
+            {canManageRoles && (
+              <TextField
+                label="Perfil principal"
+                select
+                value={values.role}
+                onChange={handleChange('role')}
+                required
+                fullWidth
+              >
+                {roleOptions.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option === 'user'
+                      ? 'Assistido'
+                      : option === 'recepcao'
+                      ? 'Recepção'
+                      : option === 'entrevista'
+                      ? 'Entrevista'
+                      : option === 'exame'
+                      ? 'Exame'
+                      : 'Administrador'}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
 
-            <Box sx={{ gridColumn: fullRow }}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Perfis adicionais
-              </Typography>
-              <Stack direction="row" flexWrap="wrap" spacing={1}>
-                {roleOptions
-                  .filter((r) => r !== 'user')
-                  .map((option) => (
-                    <FormControlLabel
-                      key={option}
-                      control={
-                        <Switch
-                          checked={values.extra_roles.includes(option)}
-                          onChange={handleToggleExtraRole(option)}
-                          size="small"
-                        />
-                      }
-                      label={
-                        option === 'recepcao'
-                          ? 'Recepção'
-                          : option === 'entrevista'
-                          ? 'Entrevista'
-                          : option === 'exame'
-                          ? 'Exame'
-                          : 'Administrador'
-                      }
-                    />
-                  ))}
-              </Stack>
-            </Box>
+            {canManageRoles && (
+              <Box sx={{ gridColumn: fullRow }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Perfis adicionais
+                </Typography>
+                <Stack direction="row" flexWrap="wrap" spacing={1}>
+                  {roleOptions
+                    .filter((r) => r !== 'user')
+                    .map((option) => (
+                      <FormControlLabel
+                        key={option}
+                        control={
+                          <Switch
+                            checked={values.extra_roles.includes(option)}
+                            onChange={handleToggleExtraRole(option)}
+                            size="small"
+                          />
+                        }
+                        label={
+                          option === 'recepcao'
+                            ? 'Recepção'
+                            : option === 'entrevista'
+                            ? 'Entrevista'
+                            : option === 'exame'
+                            ? 'Exame'
+                            : 'Administrador'
+                        }
+                      />
+                    ))}
+                </Stack>
+              </Box>
+            )}
 
             <TextField
               label="Senha"

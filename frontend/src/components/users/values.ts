@@ -19,6 +19,7 @@ export const DEFAULT_VALUES: UserFormValues = {
   extra_roles: [],
   assistance_day: '',
   digital_login_enabled: true,
+  preferential: false,
   password: '',
   confirm_password: '',
 }

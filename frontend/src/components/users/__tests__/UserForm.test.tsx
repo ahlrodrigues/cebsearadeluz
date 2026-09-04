@@ -71,6 +71,10 @@ describe("UserForm - create mode", () => {
       social_network: undefined,
       status: "Ativo",
       role: "user",
+      extra_roles: [],
+      assistance_day: undefined,
+      digital_login_enabled: true,
+      preferential: false,
       password: "SenhaSegura1",
     });
   }, 10000);
@@ -112,6 +116,7 @@ describe("UserForm - edit mode", () => {
       phone: "(11)97777-1111",
       status: "Desativado",
       role: "admin",
+      preferential: false,
     });
     expect(submitted).not.toHaveProperty("password");
   }, 10000);
